@@ -55,6 +55,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.otel.OtelService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -157,6 +158,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+        listener = OtelService.startSpan("recovery", listener);
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -184,6 +186,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             request.targetNode()
         );
         handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
+        // Log the metrics for the current thread
+        OtelService.addAfterSpanEvents(listener, "peer-recovery");
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {

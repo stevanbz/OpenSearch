@@ -71,6 +71,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.SegmentFileTransferHandler;
+import org.opensearch.otel.OtelService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -432,6 +433,7 @@ public abstract class RecoverySourceHandler {
                     new ByteSizeValue(existingTotalSizeInBytes)
                 );
                 final StepListener<Void> sendFileInfoStep = new StepListener<>();
+                // ActionListener<Void> wrapped = OtelService.startSpan("sendFileInfoWrapped", sendFileInfoStep);
                 final StepListener<Void> sendFilesStep = new StepListener<>();
                 final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
@@ -514,6 +516,7 @@ public abstract class RecoverySourceHandler {
     }
 
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
+        listener = OtelService.startSpan("sendFile", listener);
         final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = transferHandler.createTransfer(
             store,
             files,
@@ -525,6 +528,7 @@ public abstract class RecoverySourceHandler {
     }
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
+        ActionListener<RetentionLease> wrappedListener = OtelService.startSpan("createRetentionLease", listener);
         RunUnderPrimaryPermit.run(() -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
@@ -541,7 +545,7 @@ public abstract class RecoverySourceHandler {
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                cloneRetentionLeaseStep.whenComplete(rr -> listener.onResponse(clonedLease), listener::onFailure);
+                cloneRetentionLeaseStep.whenComplete(rr -> wrappedListener.onResponse(clonedLease), listener::onFailure);
             } catch (RetentionLeaseNotFoundException e) {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
@@ -554,7 +558,7 @@ public abstract class RecoverySourceHandler {
                     estimatedGlobalCheckpoint,
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
                 );
-                addRetentionLeaseStep.whenComplete(rr -> listener.onResponse(newLease), listener::onFailure);
+                addRetentionLeaseStep.whenComplete(rr -> wrappedListener.onResponse(newLease), wrappedListener::onFailure);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
             }
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
@@ -599,12 +603,13 @@ public abstract class RecoverySourceHandler {
 
     void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
         StopWatch stopWatch = new StopWatch().start();
+        ActionListener<TimeValue> listenerWrapped = OtelService.startSpan("prepareForTranslog", listener);
         final ActionListener<Void> wrappedListener = ActionListener.wrap(nullVal -> {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase1]: remote engine start took [{}]", tookTime);
-            listener.onResponse(tookTime);
-        }, e -> listener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
+            listenerWrapped.onResponse(tookTime);
+        }, e -> listenerWrapped.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");
@@ -637,6 +642,7 @@ public abstract class RecoverySourceHandler {
         final long mappingVersion,
         final ActionListener<SendSnapshotResult> listener
     ) throws IOException {
+        ActionListener<SendSnapshotResult> phase2 = OtelService.startSpan("phase-2", listener);
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -668,8 +674,8 @@ public abstract class RecoverySourceHandler {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase2]: took [{}]", tookTime);
-            listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
-        }, listener::onFailure);
+            phase2.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
+        }, phase2::onFailure);
         sender.start();
     }
 
@@ -786,6 +792,7 @@ public abstract class RecoverySourceHandler {
     }
 
     void finalizeRecovery(long targetLocalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) throws IOException {
+        ActionListener<Void> wrappedListener = OtelService.startSpan("finalizeRecovery", listener);
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -840,8 +847,8 @@ public abstract class RecoverySourceHandler {
             }
             stopWatch.stop();
             logger.info("finalizing recovery took [{}]", stopWatch.totalTime());
-            listener.onResponse(null);
-        }, listener::onFailure);
+            wrappedListener.onResponse(null);
+        }, wrappedListener::onFailure);
     }
 
     /**
@@ -888,6 +895,7 @@ public abstract class RecoverySourceHandler {
         long globalCheckpoint,
         ActionListener<Void> listener
     ) {
+        listener = OtelService.startSpan("cleanFiles", listener);
         // Send the CLEAN_FILES request, which takes all of the files that
         // were transferred and renames them from their temporary file
         // names to the actual file names. It also writes checksums for
