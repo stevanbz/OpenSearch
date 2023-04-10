@@ -39,6 +39,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.otel.OtelService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.common.util.FeatureFlags;
@@ -354,6 +355,8 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    private final OtelService otelService;
+
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
@@ -648,6 +651,7 @@ public class Node implements Closeable {
                     directoryFactories.put(k, v);
                 });
             directoryFactories.putAll(builtInDirectoryFactories);
+            this.otelService = new OtelService(pluginsService);
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -1056,7 +1060,7 @@ public class Node implements Closeable {
                 {
                     processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     b.bind(PeerRecoverySourceService.class)
-                        .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
+                        .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings, otelService));
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
                     if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
