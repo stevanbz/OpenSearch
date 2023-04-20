@@ -32,8 +32,6 @@
 
 package org.opensearch.indices.recovery;
 
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.context.Scope;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
@@ -74,7 +72,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.SegmentFileTransferHandler;
-import org.opensearch.otel.OtelService;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -124,7 +122,6 @@ public abstract class RecoverySourceHandler {
     protected final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
     public static final String PEER_RECOVERY_NAME = "peer-recovery";
     private final SegmentFileTransferHandler transferHandler;
-    private final OtelService otelService;
 
     RecoverySourceHandler(
         IndexShard shard,
@@ -133,8 +130,7 @@ public abstract class RecoverySourceHandler {
         StartRecoveryRequest request,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks,
-        int maxConcurrentOperations,
-        OtelService otelService
+        int maxConcurrentOperations
     ) {
         this.logger = Loggers.getLogger(RecoverySourceHandler.class, request.shardId(), "recover to " + request.targetNode().getName());
         this.transferHandler = new SegmentFileTransferHandler(
@@ -145,8 +141,7 @@ public abstract class RecoverySourceHandler {
             threadPool,
             cancellableThreads,
             fileChunkSizeInBytes,
-            maxConcurrentFileChunks,
-            otelService
+            maxConcurrentFileChunks
         );
         this.shard = shard;
         this.threadPool = threadPool;
@@ -156,7 +151,6 @@ public abstract class RecoverySourceHandler {
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentOperations = maxConcurrentOperations;
-        this.otelService = otelService;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -221,7 +215,7 @@ public abstract class RecoverySourceHandler {
                         }
                         return null;
                     };
-                OtelService.callFunctionAndStartSpan(
+                OpenTelemetryService.callFunctionAndStartSpan(
                     "finalizeRecovery",
                     finalizeRecoveryFun,
                     finalizeStep,
@@ -476,7 +470,7 @@ public abstract class RecoverySourceHandler {
                     );
                     return null;
                 };
-                OtelService.callFunctionAndStartSpan(
+                OpenTelemetryService.callFunctionAndStartSpan(
                     "sendFileInfo",
                     receiveFileInfoFunction,
                     sendFileInfoStep,
@@ -498,7 +492,7 @@ public abstract class RecoverySourceHandler {
                             );
                             return null;
                         };
-                        OtelService.callFunctionAndStartSpan(
+                        OpenTelemetryService.callFunctionAndStartSpan(
                             "sendFiles",
                             sendFileFunction,
                             sendFilesStep,
@@ -523,7 +517,7 @@ public abstract class RecoverySourceHandler {
                                 );
                                 return null;
                             };
-                            OtelService.callFunctionAndStartSpan(
+                            OpenTelemetryService.callFunctionAndStartSpan(
                                 "createRetentionLease",
                                 createRetentionLeaseFunction,
                                 createRetentionLeaseStep,
