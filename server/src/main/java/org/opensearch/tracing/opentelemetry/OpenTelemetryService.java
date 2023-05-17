@@ -10,26 +10,28 @@ package org.opensearch.tracing.opentelemetry;
 
 import com.sun.management.ThreadMXBean;
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 
 import java.lang.management.ManagementFactory;
 import java.util.List;
@@ -43,17 +45,24 @@ public class OpenTelemetryService {
     public static Resource resource;
     public static SdkTracerProvider sdkTracerProvider;
     public static SdkMeterProvider sdkMeterProvider;
+    public static Meter meter;
     public static OpenTelemetry openTelemetry;
-    private static final List<TaskEventListener> DEFAULT_TASK_EVENT_LISTENERS;
     private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC);
-    private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+    public static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     static {
+        // threadMXBean.setThreadContentionMonitoringEnabled(true);
         resource = Resource.getDefault()
-            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "opensearch-tasks")));
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "opensearch-tasks-1")));
+
+        OtlpGrpcSpanExporter exporter = OtlpGrpcSpanExporter.builder()
+            .setEndpoint("http://localhost:4317") // Replace with the actual endpoint
+            .build();
 
         sdkTracerProvider = SdkTracerProvider.builder()
-            .addSpanProcessor(SimpleSpanProcessor.create(OtlpHttpSpanExporter.builder().build()))
+            // .addSpanProcessor(SimpleSpanProcessor.create(OtlpHttpSpanExporter.builder().build()))
+            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+            .addSpanProcessor(BatchSpanProcessor.builder(LoggingSpanExporter.create()).build())
             .setResource(resource)
             .build();
 
@@ -68,44 +77,10 @@ public class OpenTelemetryService {
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .buildAndRegisterGlobal();
 
-        DEFAULT_TASK_EVENT_LISTENERS = List.of(new TaskEventListener() {
-            @Override
-            public void onStart(String operationName, String eventName, Thread t) {
-                Span span = Span.current();
-                if (span != Span.getInvalid()) {
-                    span.addEvent(eventName,
-                        Attributes.of(
-                            AttributeKey.longKey("ThreadID"), t.getId(),
-                            AttributeKey.stringKey("ThreadName"), t.getName(),
-                            AttributeKey.longKey("CPUUsage"), threadMXBean.getThreadCpuTime(t.getId()),
-                            AttributeKey.longKey("MemoryUsage"), threadMXBean.getThreadAllocatedBytes(t.getId()),
-                            AttributeKey.longKey("ContentionTime"), threadMXBean.getThreadInfo(t.getId()).getBlockedTime()
-                        )
-                    );
-                }
-            }
+        meter = openTelemetry.meterBuilder("instrumentation-library-name")
+            .setInstrumentationVersion("1.0.0")
+            .build();
 
-            @Override
-            public void onEnd(String operationName, String eventName, Thread t) {
-                Span span = Span.current();
-                if (span != Span.getInvalid()) {
-                    span.addEvent(eventName,
-                        Attributes.of(
-                            AttributeKey.longKey("ThreadID"), t.getId(),
-                            AttributeKey.stringKey("ThreadName"), t.getName(),
-                            AttributeKey.longKey("CPUUsage"), threadMXBean.getThreadCpuTime(t.getId()),
-                            AttributeKey.longKey("MemoryUsage"), threadMXBean.getThreadAllocatedBytes(t.getId()),
-                            AttributeKey.longKey("ContentionTime"), threadMXBean.getThreadInfo(t.getId()).getBlockedTime()
-                        )
-                    );
-                }
-            }
-
-            @Override
-            public boolean isApplicable(String operationName, String eventName) {
-                return true;
-            }
-        });
     }
 
     public static boolean isThreadPoolAllowed(String threadPoolName) {
@@ -153,7 +128,7 @@ public class OpenTelemetryService {
                 synchronized (TaskEventListener.class) {
                     if (INSTANCE == null) {
                         INSTANCE = otelEventListenerList;
-                        INSTANCE.addAll(DEFAULT_TASK_EVENT_LISTENERS);
+                        INSTANCE.add(JavaThreadEventListener.INSTANCE);
                     }
                 }
             }
@@ -171,7 +146,7 @@ public class OpenTelemetryService {
                             if (startEvent) {
                                 eventListener.onStart(operationName, eventName, t);
                             } else {
-                                eventListener.onStart(operationName, eventName, t);
+                                eventListener.onEnd(operationName, eventName, t);
                             }
                         }
                     }

@@ -8,7 +8,9 @@
 
 package org.opensearch.tracing;
 
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.context.Context;
+import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 
 import java.util.concurrent.ExecutorService;
 

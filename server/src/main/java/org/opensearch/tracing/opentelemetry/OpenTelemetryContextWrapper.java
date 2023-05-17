@@ -18,6 +18,9 @@ public class OpenTelemetryContextWrapper {
      * @param executorService executor service to be wrapped
      */
     public static ExecutorService wrapTask(ExecutorService executorService) {
+        if (executorService instanceof OpenSearchConcurrentExecutorService) {
+            return executorService;
+        }
         return new OpenSearchConcurrentExecutorService(executorService);
     }
 

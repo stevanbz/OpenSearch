@@ -155,7 +155,7 @@ dependencies {
 
   //implementation "com.squareup.okio:okio:2.8.0"
 
-  //implementation 'io.opentelemetry:opentelemetry-exporter-logging:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-logging:1.23.1'
   //implementation 'io.opentelemetry:opentelemetry-exporter-jaeger:1.23.1'
 
   // jna
