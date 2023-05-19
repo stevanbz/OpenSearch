@@ -8,6 +8,7 @@
 
 package org.opensearch.tracing;
 
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.context.Context;
 import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;

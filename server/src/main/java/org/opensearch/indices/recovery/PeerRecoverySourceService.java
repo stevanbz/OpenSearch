@@ -32,6 +32,8 @@
 
 package org.opensearch.indices.recovery;
 
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.Span;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -163,11 +165,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
-        Span span = Span.current();
-        span.setAttribute(stringKey("index-name"), request.shardId().getIndexName());
-        span.setAttribute(longKey("shard-id"), request.shardId().id());
-        span.setAttribute(stringKey("source-node"), request.sourceNode().getId());
-        span.setAttribute(stringKey("target-node"), request.targetNode().getId());
 
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
@@ -218,8 +215,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 recover((StartRecoveryRequest) args[0], (ActionListener<RecoveryResponse>) actionListener);
                 return null;
             };
+            AttributesBuilder attributesBuilder = Attributes.builder();
+            attributesBuilder.put(stringKey("index-name"), request.shardId().getIndexName());
+            attributesBuilder.put(stringKey("shard-id"), String.valueOf(request.shardId().id()));
+            attributesBuilder.put(stringKey("source-node"), request.sourceNode().getId());
+            attributesBuilder.put(stringKey("target-node"), request.targetNode().getId());
             OpenTelemetryService.callFunctionAndStartSpan("recover", recoverFunction,
-                new ChannelActionListener<>(channel, Actions.START_RECOVERY, request), request);
+                new ChannelActionListener<>(channel, Actions.START_RECOVERY, request), attributesBuilder.build(), request);
         }
     }
 

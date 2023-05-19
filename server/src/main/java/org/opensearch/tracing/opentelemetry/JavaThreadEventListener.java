@@ -8,14 +8,13 @@
 
 package org.opensearch.tracing.opentelemetry;
 
-import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.common.AttributesBuilder;
 import org.opensearch.tracing.TaskEventListener;
 import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Stack;
 
@@ -49,40 +48,36 @@ public class JavaThreadEventListener implements TaskEventListener {
 
         public void endRecording() {
             endTime = System.currentTimeMillis();
-            TraceOperationMeters.cpuTime.record(OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime, Attributes.of(                        AttributeKey.longKey("ThreadID"), t.getId(),
-                AttributeKey.stringKey("ThreadName"), t.getName(),
-                AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
-            );
-            TraceOperationMeters.heapAllocatedBytes.record(OpenTelemetryService.threadMXBean.getThreadAllocatedBytes(t.getId()) - this.heapAllocatedBytes, Attributes.of(                        AttributeKey.longKey("ThreadID"), t.getId(),
-                AttributeKey.stringKey("ThreadName"), t.getName(),
-                AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
-            );
+
+            Baggage baggage = Baggage.current();
+
+            AttributesBuilder attributesBuilder = Attributes.builder();
+
+            baggage.forEach((key, baggageEntry) -> {
+                attributesBuilder.put(key, baggageEntry.getValue());
+            });
+
+            Attributes attributes = attributesBuilder.build();
+
+            TraceOperationMeters.cpuTime.record(OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime, attributes);
+            TraceOperationMeters.heapAllocatedBytes.record(OpenTelemetryService.threadMXBean.getThreadAllocatedBytes(t.getId()) - this.heapAllocatedBytes,
+                attributes);
             if (false) {
-                TraceOperationMeters.blockedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedCount() - this.blockedCount, Attributes.of(                        AttributeKey.longKey("ThreadID"), t.getId(),
-                    AttributeKey.stringKey("ThreadName"), t.getName(),
-                    AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
+                TraceOperationMeters.blockedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedCount() - this.blockedCount,
+                    attributes
                 );
-                TraceOperationMeters.waitedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedCount() - this.waitedCount, Attributes.of(                        AttributeKey.longKey("ThreadID"), t.getId(),
-                    AttributeKey.stringKey("ThreadName"), t.getName(),
-                    AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
+                TraceOperationMeters.waitedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedCount() - this.waitedCount, attributes
                 );
 
-                TraceOperationMeters.blockedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedTime() - this.blockedTime, Attributes.of(AttributeKey.longKey("ThreadID"), t.getId(),
-                    AttributeKey.stringKey("ThreadName"), t.getName(),
-                    AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
+                TraceOperationMeters.blockedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedTime() - this.blockedTime, attributes
                 );
-                TraceOperationMeters.waitedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedTime() - this.waitedTime, Attributes.of(AttributeKey.longKey("ThreadID"), t.getId(),
-                    AttributeKey.stringKey("ThreadName"), t.getName(),
-                    AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
+                TraceOperationMeters.waitedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedTime() - this.waitedTime, attributes
                 );
             }
-            TraceOperationMeters.elapsedTime.record(startTime - endTime, Attributes.of(AttributeKey.longKey("ThreadID"), t.getId(),
-                AttributeKey.stringKey("ThreadName"), t.getName(),
-                AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
+            TraceOperationMeters.elapsedTime.record(endTime - startTime, attributes
             );
-            TraceOperationMeters.cpuUtilization.record(((OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime)/duration)*100, Attributes.of(                        AttributeKey.longKey("ThreadID"), t.getId(),
-                AttributeKey.stringKey("ThreadName"), t.getName(),
-                AttributeKey.stringKey("SpanID"), Span.current().getSpanContext().getSpanId())
+            TraceOperationMeters.cpuUtilization.record(((OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime)/duration)*100,
+                attributes
             );
         }
     }

@@ -10,7 +10,10 @@ package org.opensearch.tracing.opentelemetry;
 
 import com.sun.management.ThreadMXBean;
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.baggage.Baggage;
+import io.opentelemetry.api.baggage.BaggageBuilder;
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
@@ -59,6 +62,9 @@ public class OpenTelemetryService {
             .setEndpoint("http://localhost:4317") // Replace with the actual endpoint
             .build();
 
+        OtlpGrpcMetricExporter metricExporter = OtlpGrpcMetricExporter.builder()
+            .setEndpoint("http://localhost:4317") // Replace with the actual endpoint
+            .build();
         sdkTracerProvider = SdkTracerProvider.builder()
             // .addSpanProcessor(SimpleSpanProcessor.create(OtlpHttpSpanExporter.builder().build()))
             .addSpanProcessor(SimpleSpanProcessor.create(exporter))
@@ -67,7 +73,7 @@ public class OpenTelemetryService {
             .build();
 
         sdkMeterProvider = SdkMeterProvider.builder()
-            .registerMetricReader(PeriodicMetricReader.builder(OtlpGrpcMetricExporter.builder().build()).build())
+            .registerMetricReader(PeriodicMetricReader.builder(metricExporter).build())
             .setResource(resource)
             .build();
 
@@ -77,7 +83,7 @@ public class OpenTelemetryService {
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .buildAndRegisterGlobal();
 
-        meter = openTelemetry.meterBuilder("instrumentation-library-name")
+        meter = openTelemetry.meterBuilder("opensearch-task")
             .setInstrumentationVersion("1.0.0")
             .build();
 
@@ -94,10 +100,21 @@ public class OpenTelemetryService {
      */
     public static <R> void callFunctionAndStartSpan(String spanName, BiFunction<Object[], ActionListener<?>, R> function,
                                                     ActionListener<?> actionListener, Object... args) {
+        callFunctionAndStartSpan(spanName, function, actionListener, Attributes.builder().build(), args);
+    }
+
+    public static <R> void callFunctionAndStartSpan(String spanName, BiFunction<Object[], ActionListener<?>, R> function,
+                                                    ActionListener<?> actionListener, Attributes attributes, Object... args) {
         Context beforeAttach = Context.current();
         Span span = startSpan(spanName);
-        try(Scope ignored = span.makeCurrent()) {
-            actionListener = new OTelContextPreservingActionListener<>(actionListener, beforeAttach, span.getSpanContext().getSpanId());
+        BaggageBuilder baggageBuilder = Baggage.builder();
+        // only string keys and values are supported
+        attributes.forEach((k,v) -> baggageBuilder.put(k.getKey(), v.toString()));
+        Baggage baggage = baggageBuilder.build();
+        try(Scope ignored = span.makeCurrent(); Scope ignored2 = baggage.makeCurrent()) {
+            span.setAllAttributes(attributes);
+            actionListener = new OTelContextPreservingActionListener<>(actionListener, beforeAttach,
+                span.getSpanContext().getSpanId());
             callTaskEventListeners(true, "", spanName + "-Start", Thread.currentThread(),
                 TaskEventListeners.getInstance(null));
             function.apply(args, actionListener);
@@ -106,7 +123,6 @@ public class OpenTelemetryService {
                 TaskEventListeners.getInstance(null));
         }
     }
-
     /**
      * TODO - to be replaced when OpenSearch tracing APIs are available
      */
