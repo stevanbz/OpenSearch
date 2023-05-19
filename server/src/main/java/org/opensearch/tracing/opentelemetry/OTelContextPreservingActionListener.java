@@ -8,6 +8,7 @@
 
 package org.opensearch.tracing.opentelemetry;
 
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
@@ -32,39 +33,49 @@ import static io.opentelemetry.api.common.AttributeKey.stringKey;
 public final class OTelContextPreservingActionListener<Response> implements ActionListener<Response> {
     private final ActionListener<Response> delegate;
     private final Context beforeAttachContext;
+
+    private final Baggage beforeAttachBaggage;
+
     private final Context afterAttachContext;
     private final String spanID;
 
-    public OTelContextPreservingActionListener(ActionListener<Response> delegate, Context beforeAttachContext, String spanID) {
+    public OTelContextPreservingActionListener(ActionListener<Response> delegate, Context beforeAttachContext,
+                                               Baggage beforeAttachBaggage, String spanID) {
         this.delegate = delegate;
         this.beforeAttachContext = beforeAttachContext;
+        this.beforeAttachBaggage = beforeAttachBaggage;
         this.afterAttachContext = Context.current();
         this.spanID = spanID;
     }
 
-    public OTelContextPreservingActionListener(ActionListener<Response> delegate, Context beforeAttachContext) {
-        this(delegate, beforeAttachContext, null);
+    public OTelContextPreservingActionListener(ActionListener<Response> delegate, Context beforeAttachContext,
+                                               Baggage beforeAttachBaggage) {
+        this(delegate, beforeAttachContext, beforeAttachBaggage,null);
     }
 
     @Override
     public void onResponse(Response r) {
-        try (Scope ignored = Objects.requireNonNull(afterAttachContext).makeCurrent()) {
+        try (Scope ignored = Objects.requireNonNull(afterAttachContext).makeCurrent();
+             Scope ignored2 = Baggage.current().makeCurrent()) {
             Span span = Span.current();
             closeCurrentScope(span);
         }
-        try (Scope ignored = Objects.requireNonNull(beforeAttachContext).makeCurrent()) {
+        try (Scope ignored = Objects.requireNonNull(beforeAttachContext).makeCurrent();
+             Scope ignored2 = beforeAttachBaggage.makeCurrent()) {
             delegate.onResponse(r);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
-        try (Scope ignored = Objects.requireNonNull(afterAttachContext).makeCurrent()) {
+        try (Scope ignored = Objects.requireNonNull(afterAttachContext).makeCurrent();
+             Scope ignored2 = Baggage.current().makeCurrent()) {
             Span span = Span.current();
             span.setStatus(StatusCode.ERROR);
             closeCurrentScope(span);
         }
-        try (Scope ignored = Objects.requireNonNull(beforeAttachContext).makeCurrent()) {
+        try (Scope ignored = Objects.requireNonNull(beforeAttachContext).makeCurrent();
+             Scope ignored2 = beforeAttachBaggage.makeCurrent()) {
             delegate.onFailure(e);
         }
     }

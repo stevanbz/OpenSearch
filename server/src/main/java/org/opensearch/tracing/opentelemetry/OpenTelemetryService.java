@@ -105,15 +105,12 @@ public class OpenTelemetryService {
     public static <R> void callFunctionAndStartSpan(String spanName, BiFunction<Object[], ActionListener<?>, R> function,
                                                     ActionListener<?> actionListener, Attributes attributes, Object... args) {
         Context beforeAttach = Context.current();
-        Span span = startSpan(spanName);
-        BaggageBuilder baggageBuilder = Baggage.builder();
-        // only string keys and values are supported
-        attributes.forEach((k,v) -> baggageBuilder.put(k.getKey(), v.toString()));
-        baggageBuilder.put("SpanName", spanName);
-        Baggage baggage = baggageBuilder.build();
+        Span span = createSpan(spanName);
+        Baggage baggage = createBaggage(spanName, attributes);
+        Baggage beforeAttachBaggage = Baggage.current();
         try(Scope ignored = span.makeCurrent(); Scope ignored2 = baggage.makeCurrent()) {
             span.setAllAttributes(attributes);
-            actionListener = new OTelContextPreservingActionListener<>(actionListener, beforeAttach,
+            actionListener = new OTelContextPreservingActionListener<>(actionListener, beforeAttach, beforeAttachBaggage,
                 span.getSpanContext().getSpanId());
             callTaskEventListeners(true, "", spanName + "-Start", Thread.currentThread(),
                 TaskEventListeners.getInstance(null));
@@ -126,12 +123,22 @@ public class OpenTelemetryService {
     /**
      * TODO - to be replaced when OpenSearch tracing APIs are available
      */
-    private static Span startSpan(String spanName) {
+    private static Span createSpan(String spanName) {
         Tracer tracer = OpenTelemetryService.sdkTracerProvider.get("recover");
         Span span = tracer.spanBuilder(spanName).setParent(Context.current()).startSpan();
         span.setAttribute(stringKey("start-thread-name"), Thread.currentThread().getName());
         span.setAttribute(longKey("start-thread-id"), Thread.currentThread().getId());
         return span;
+    }
+
+    private static Baggage createBaggage(String spanName, Attributes attributes) {
+        BaggageBuilder baggageBuilder = Baggage.builder();
+        // only string keys and values are supported
+        // copy all new + current attributes in new baggage
+        attributes.forEach((k,v) -> baggageBuilder.put(k.getKey(), v.toString()));
+        Baggage.current().forEach((k,v) -> baggageBuilder.put(k, v.getValue()));
+        baggageBuilder.put("SpanName", spanName);
+        return baggageBuilder.build();
     }
 
     /**

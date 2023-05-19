@@ -32,6 +32,7 @@
 
 package org.opensearch.index.seqno;
 
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.context.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -133,7 +134,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         RetentionLeases retentionLeases,
         ActionListener<ReplicationResponse> listener1
     ) {
-        final ActionListener<ReplicationResponse> listener = new OTelContextPreservingActionListener<>(listener1, Context.current());
+        final ActionListener<ReplicationResponse> listener = new OTelContextPreservingActionListener<>(listener1, Context.current(), Baggage.current());
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized

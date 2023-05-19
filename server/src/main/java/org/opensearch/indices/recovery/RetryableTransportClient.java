@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.recovery;
 
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.context.Context;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
@@ -96,7 +97,7 @@ public final class RetryableTransportClient {
                     request,
                     options,
                     new ActionListenerResponseHandler<>(
-                        new OTelContextPreservingActionListener<>(listener, Context.current()),
+                        new OTelContextPreservingActionListener<>(listener, Context.current(), Baggage.current()),
                         reader, ThreadPool.Names.GENERIC)
                 );
             }

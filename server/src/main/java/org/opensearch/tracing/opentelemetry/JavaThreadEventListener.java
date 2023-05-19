@@ -22,13 +22,19 @@ public class JavaThreadEventListener implements TaskEventListener {
     public static JavaThreadEventListener INSTANCE = new JavaThreadEventListener();
     static class SupportedMeasurement {
         public long startTime;
+
         public long endTime;
 
         public double cpuTime;
+
         public double heapAllocatedBytes;
+
         public long blockedCount;
+
         public long waitedCount;
+
         public double blockedTime;
+
         public double waitedTime;
 
         public long duration;
@@ -48,31 +54,21 @@ public class JavaThreadEventListener implements TaskEventListener {
 
         public void endRecording() {
             endTime = System.currentTimeMillis();
-
             Baggage baggage = Baggage.current();
-
             AttributesBuilder attributesBuilder = Attributes.builder();
-
             baggage.forEach((key, baggageEntry) -> {
                 attributesBuilder.put(key, baggageEntry.getValue());
             });
 
             Attributes attributes = attributesBuilder.build();
-
             TraceOperationMeters.cpuTime.record(OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime, attributes);
             TraceOperationMeters.heapAllocatedBytes.record(OpenTelemetryService.threadMXBean.getThreadAllocatedBytes(t.getId()) - this.heapAllocatedBytes,
                 attributes);
             if (false) {
-                TraceOperationMeters.blockedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedCount() - this.blockedCount,
-                    attributes
-                );
-                TraceOperationMeters.waitedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedCount() - this.waitedCount, attributes
-                );
-
-                TraceOperationMeters.blockedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedTime() - this.blockedTime, attributes
-                );
-                TraceOperationMeters.waitedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedTime() - this.waitedTime, attributes
-                );
+                TraceOperationMeters.blockedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedCount() - this.blockedCount, attributes);
+                TraceOperationMeters.waitedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedCount() - this.waitedCount, attributes);
+                TraceOperationMeters.blockedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedTime() - this.blockedTime, attributes);
+                TraceOperationMeters.waitedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedTime() - this.waitedTime, attributes);
             }
             this.duration = endTime - startTime;
             TraceOperationMeters.elapsedTime.record(duration, attributes);
@@ -82,6 +78,7 @@ public class JavaThreadEventListener implements TaskEventListener {
     }
 
     private static final Map<Long, Stack<SupportedMeasurement>> threadCPUUsage = new HashMap<>();
+
     @Override
     public void onStart(String operationName, String eventName, Thread t) {
         threadCPUUsage.computeIfAbsent(t.getId(), k -> new Stack<>());
