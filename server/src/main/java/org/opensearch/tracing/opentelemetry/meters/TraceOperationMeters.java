@@ -11,13 +11,12 @@ package org.opensearch.tracing.opentelemetry.meters;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 
 public class TraceOperationMeters {
     public static DoubleHistogram cpuTime;
-    public static ObservableDoubleMeasurement cpuUtilization;
-    public static ObservableDoubleMeasurement heapAllocatedBytes;
+    public static DoubleHistogram cpuUtilization;
+    public static DoubleHistogram heapAllocatedBytes;
     public static LongCounter blockedCount;
     public static LongCounter waitedCount;
     public static DoubleHistogram blockedTime;
@@ -28,8 +27,8 @@ public class TraceOperationMeters {
     static  {
         Meter meter = getMeter();
         cpuTime = meter.histogramBuilder("CPUTime").build();
-        cpuUtilization = meter.gaugeBuilder("CPUUtilization").buildObserver();
-        heapAllocatedBytes = meter.gaugeBuilder("HeapAllocatedBytes").buildObserver();
+        cpuUtilization = meter.histogramBuilder("CPUUtilization").build();
+        heapAllocatedBytes = meter.histogramBuilder("HeapAllocatedBytes").build();
         blockedCount = meter.counterBuilder("BlockedCount").build();
         waitedCount = meter.counterBuilder("WaitedCount").build();
         blockedTime = meter.histogramBuilder("BlockedTime").build();

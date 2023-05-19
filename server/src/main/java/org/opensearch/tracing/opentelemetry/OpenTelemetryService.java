@@ -13,7 +13,6 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.baggage.BaggageBuilder;
 import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
@@ -110,6 +109,7 @@ public class OpenTelemetryService {
         BaggageBuilder baggageBuilder = Baggage.builder();
         // only string keys and values are supported
         attributes.forEach((k,v) -> baggageBuilder.put(k.getKey(), v.toString()));
+        baggageBuilder.put("SpanName", spanName);
         Baggage baggage = baggageBuilder.build();
         try(Scope ignored = span.makeCurrent(); Scope ignored2 = baggage.makeCurrent()) {
             span.setAllAttributes(attributes);
