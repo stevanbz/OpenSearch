@@ -9,11 +9,14 @@
 package org.opensearch.tracing.opentelemetry;
 
 import io.opentelemetry.api.baggage.Baggage;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import org.opensearch.action.ActionListener;
+import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 
 import java.util.Objects;
 
@@ -26,7 +29,7 @@ import static io.opentelemetry.api.common.AttributeKey.stringKey;
  * 2. Close the Span if one passed while its construction.
  * 3. Set the scope back to previous context prior to starting the new Span.
  * In case, no Span was started and needs to be closed
- * {@link OTelContextPreservingActionListener#OTelContextPreservingActionListener(ActionListener, Context)} can be used
+ * {@link OTelContextPreservingActionListener#OTelContextPreservingActionListener(ActionListener, Context, Baggage)} can be used
  * with beforeAttachContext as {@link Context#current()}.
  * @param <Response> Response object type
  */
@@ -39,6 +42,8 @@ public final class OTelContextPreservingActionListener<Response> implements Acti
     private final Context afterAttachContext;
     private final String spanID;
 
+    private final long startTimeInMilis;
+
     public OTelContextPreservingActionListener(ActionListener<Response> delegate, Context beforeAttachContext,
                                                Baggage beforeAttachBaggage, String spanID) {
         this.delegate = delegate;
@@ -46,6 +51,8 @@ public final class OTelContextPreservingActionListener<Response> implements Acti
         this.beforeAttachBaggage = beforeAttachBaggage;
         this.afterAttachContext = Context.current();
         this.spanID = spanID;
+        startTimeInMilis = System.currentTimeMillis();
+
     }
 
     public OTelContextPreservingActionListener(ActionListener<Response> delegate, Context beforeAttachContext,
@@ -85,6 +92,12 @@ public final class OTelContextPreservingActionListener<Response> implements Acti
         span.setAttribute(stringKey("finish-thread-name"), Thread.currentThread().getName());
         span.setAttribute(longKey("finish-thread-id"), Thread.currentThread().getId());
         if (spanID != null) {
+            Baggage baggage = Baggage.current();
+            AttributesBuilder attributesBuilder = Attributes.builder();
+            baggage.forEach((key, baggageEntry) -> {
+                attributesBuilder.put(key, baggageEntry.getValue());
+            });
+            TraceOperationMeters.elapsedTime.record(System.currentTimeMillis() - startTimeInMilis, attributesBuilder.build());
             Span.current().end();
         }
     }

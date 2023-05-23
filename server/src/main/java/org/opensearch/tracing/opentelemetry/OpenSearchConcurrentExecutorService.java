@@ -8,6 +8,7 @@
 
 package org.opensearch.tracing.opentelemetry;
 
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
@@ -91,7 +92,7 @@ final public class OpenSearchConcurrentExecutorService extends OpenSearchForward
 
     private static <T> Callable<T> wrapTask(Callable<T> callable, List<TaskEventListener> taskEventListeners) {
         return () -> {
-            try (Scope ignored = Context.current().makeCurrent()) {
+            try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
                 OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
                     Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
                 return callable.call();
@@ -104,7 +105,7 @@ final public class OpenSearchConcurrentExecutorService extends OpenSearchForward
 
     static Runnable wrapTask(Runnable runnable, List<TaskEventListener> taskEventListeners) {
         return () -> {
-            try (Scope ignored = Context.current().makeCurrent()) {
+            try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
                 OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
                     Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
                 runnable.run();

@@ -136,8 +136,14 @@ public class OpenTelemetryService {
         // only string keys and values are supported
         // copy all new + current attributes in new baggage
         attributes.forEach((k,v) -> baggageBuilder.put(k.getKey(), v.toString()));
-        Baggage.current().forEach((k,v) -> baggageBuilder.put(k, v.getValue()));
-        baggageBuilder.put("SpanName", spanName);
+        final int[] level = {0};
+        Baggage.current().forEach((k,v) -> {
+            baggageBuilder.put(k, v.getValue());
+            if (k.startsWith("SpanName_")) {
+                level[0] = Integer.parseInt(k.split("_")[1]) + 1;
+            }
+        });
+        baggageBuilder.put("SpanName_"+ level[0], spanName);
         return baggageBuilder.build();
     }
 

@@ -71,10 +71,17 @@ public class JavaThreadEventListener implements TaskEventListener {
                 TraceOperationMeters.waitedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedTime() - this.waitedTime, attributes);
             }
             this.duration = endTime - startTime;
-            TraceOperationMeters.elapsedTime.record(duration, attributes);
             // meter.gaugeBuilder("CPUUtilization").buildWithCallback(callback -> cpuUtilization = callback);
             TraceOperationMeters.cpuUtilization.record(((OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime)/duration)*100, attributes);
+
+            resetHistogram();
         }
+    }
+
+    private static void resetHistogram() {
+        TraceOperationMeters.cpuTime.record(0);
+        TraceOperationMeters.heapAllocatedBytes.record(0);
+        TraceOperationMeters.elapsedTime.record(0);
     }
 
     private static final Map<Long, Stack<SupportedMeasurement>> threadCPUUsage = new HashMap<>();
