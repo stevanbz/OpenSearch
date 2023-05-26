@@ -54,6 +54,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 import org.opensearch.node.ReportingService;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryContextWrapper;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -413,6 +415,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         if (holder == null) {
             throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
+        if (OpenTelemetryService.isThreadPoolAllowed(Names.GENERIC)) {
+            return OpenTelemetryContextWrapper.wrapTask(holder.executor());
+        }
         return holder.executor();
     }
 
@@ -693,7 +698,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
+//             assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }
@@ -895,9 +900,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         for (int i = 3; i < stackTraceElements.length; i++) {
             assert stackTraceElements[i].getClassName().equals(testingMethod.getClassName()) == false
                 || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false : testingMethod.getClassName()
-                    + "#"
-                    + testingMethod.getMethodName()
-                    + " is called recursively";
+                + "#"
+                + testingMethod.getMethodName()
+                + " is called recursively";
         }
         return true;
     }
