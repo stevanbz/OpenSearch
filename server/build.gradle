@@ -175,8 +175,8 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
 
-  // api files('/home/stevan/git/opensearch/repo/performance-analyzer-commons/build/libs/opensearch-performance-analyzer-commons-3.0.0.0-SNAPSHOT.jar')
-  api ("org.opensearch:performance-analyzer-commons:3.0.0.0-SNAPSHOT") {
+  // api files('/home/stevan/.m2/repository/org/opensearch/performance-analyzer-commons/1.0.0-SNAPSHOT/performance-analyzer-commons-1.0.0-SNAPSHOT.jar')
+  api ("org.opensearch:performance-analyzer-commons:1.0.0-SNAPSHOT") {
     exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-core')
     exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-annotations')
     exclude (group: 'com.fasterxml.jackson', module: 'jackson-bom')
