@@ -31,6 +31,12 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.action.ActionListener;
+import org.opensearch.performanceanalyzer.commons.OSMetricsGeneratorFactory;
+import org.opensearch.performanceanalyzer.commons.metrics.ThreadIDUtil;
+import org.opensearch.performanceanalyzer.commons.metrics_generator.CPUPagingActivityGenerator;
+import org.opensearch.performanceanalyzer.commons.metrics_generator.SchedMetricsGenerator;
+import org.opensearch.performanceanalyzer.commons.metrics_generator.linux.LinuxDiskIOMetricsGenerator;
+import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
@@ -51,6 +57,14 @@ public class OpenTelemetryService {
     public static OpenTelemetry openTelemetry;
     private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC);
     public static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    public static final CPUPagingActivityGenerator threadCPUPagingActivityGenerator =  OSMetricsGeneratorFactory.getInstance().getPagingActivityGenerator();
+
+    public static final SchedMetricsGenerator schedMetricsGenerator = OSMetricsGeneratorFactory.getInstance().getSchedMetricsGenerator();
+
+    public static final LinuxDiskIOMetricsGenerator diskIOMetricsGenerator = ThreadDiskIO.getIOUtilization();
+
+    public static final ThreadIDUtil threadIdUtil = ThreadIDUtil.INSTANCE;
 
     static {
         // threadMXBean.setThreadContentionMonitoringEnabled(true);
