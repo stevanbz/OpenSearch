@@ -32,11 +32,16 @@
 
 package org.opensearch.index.engine;
 
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.OneMergeHelper;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
@@ -50,11 +55,19 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.recovery.PeerRecoverySourceService;
+import org.opensearch.indices.recovery.RecoveryResponse;
+import org.opensearch.indices.recovery.StartRecoveryRequest;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import static io.opentelemetry.api.common.AttributeKey.stringKey;
 
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
@@ -95,6 +108,17 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     @Override
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
+        AttributesBuilder attributesBuilder = Attributes.builder();
+        attributesBuilder.put(stringKey("IndexName"), shardId.getIndexName());
+        attributesBuilder.put(stringKey("ShardID"), String.valueOf(shardId.id()));
+        // attributesBuilder.put(stringKey("MergeSource"), String.valueOf(mergeSource.toString()));
+        OpenTelemetryService.wrapAndCallFunction("Merge", (CheckedFunction<Object[], Void, IOException>) input -> {
+            doMergeInternal((MergeSource) input[0], (MergePolicy.OneMerge) input[1]);
+            return null;
+        }, attributesBuilder.build()).apply(new Object[]{mergeSource, merge});
+    }
+
+    protected void doMergeInternal(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         long timeNS = System.nanoTime();

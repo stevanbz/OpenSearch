@@ -13,6 +13,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.baggage.BaggageBuilder;
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
@@ -31,6 +32,8 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.IOObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.SchedObserver;
@@ -38,6 +41,7 @@ import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 
 import java.lang.management.ManagementFactory;
 import java.util.List;
@@ -53,7 +57,7 @@ public class OpenTelemetryService {
     public static SdkMeterProvider sdkMeterProvider;
     public static Meter meter;
     public static OpenTelemetry openTelemetry;
-    private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC);
+    private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH, "transport");
     public static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     public static final CPUObserver cpuObserver = new CPUObserver();
@@ -61,6 +65,8 @@ public class OpenTelemetryService {
     public static final SchedObserver schedObserver = new SchedObserver();
 
     public static final ThreadIDUtil threadIdUtil = ThreadIDUtil.INSTANCE;
+
+    public static Attributes globalAttributes;
 
     static {
         // threadMXBean.setThreadContentionMonitoringEnabled(true);
@@ -95,7 +101,7 @@ public class OpenTelemetryService {
         meter = openTelemetry.meterBuilder("opensearch-task")
             .setInstrumentationVersion("1.0.0")
             .build();
-
+        globalAttributes = Attributes.empty();
     }
 
     public static boolean isThreadPoolAllowed(String threadPoolName) {
@@ -130,6 +136,48 @@ public class OpenTelemetryService {
                 TaskEventListeners.getInstance(null));
         }
     }
+
+    // Generic wrapper function
+    public static <T, R, E extends Exception> CheckedFunction<T, R, E> wrapAndCallFunction(String spanName, CheckedFunction<T, R, E> originalFunction,
+                                                              Attributes attributes) {
+        return t -> {
+            Context beforeAttach = Context.current();
+            Span span = createSpan(spanName);
+            Baggage baggage = createBaggage(spanName, attributes);
+            Baggage beforeAttachBaggage = Baggage.current();
+            R result;
+            long startTime = System.currentTimeMillis();
+            try (Scope ignored = span.makeCurrent(); Scope ignored2 = baggage.makeCurrent()) {
+                span.setAllAttributes(attributes);
+                callTaskEventListeners(true, "", spanName + "-Start", Thread.currentThread(),
+                    TaskEventListeners.getInstance(null));
+                result = originalFunction.apply(t);
+                callTaskEventListeners(false, "", spanName + "-End", Thread.currentThread(),
+                    TaskEventListeners.getInstance(null));
+            } finally {
+                closeCurrentScope(span, baggage, startTime);
+            }
+            if (beforeAttach != null && beforeAttach != Context.root()) {
+                beforeAttach.makeCurrent();
+            }
+            if (!beforeAttachBaggage.isEmpty()) {
+                beforeAttachBaggage.makeCurrent();
+            }
+            return result;
+        };
+    }
+
+    private static void closeCurrentScope(Span span, Baggage baggage, long startTimeInMilis) {
+        span.setAttribute(stringKey("finish-thread-name"), Thread.currentThread().getName());
+        span.setAttribute(longKey("finish-thread-id"), Thread.currentThread().getId());
+        AttributesBuilder attributesBuilder = Attributes.builder();
+        baggage.forEach((key, baggageEntry) -> {
+            attributesBuilder.put(key, baggageEntry.getValue());
+        });
+        TraceOperationMeters.elapsedTime.record(System.currentTimeMillis() - startTimeInMilis,
+            attributesBuilder.build());
+        span.end();
+    }
     /**
      * TODO - to be replaced when OpenSearch tracing APIs are available
      */
@@ -153,6 +201,7 @@ public class OpenTelemetryService {
                 level[0] = Integer.parseInt(k.split("_")[1]) + 1;
             }
         });
+        globalAttributes.forEach((k,v) -> baggageBuilder.put(k.getKey(), v.toString()));
         baggageBuilder.put("SpanName_"+ level[0], spanName);
         return baggageBuilder.build();
     }
