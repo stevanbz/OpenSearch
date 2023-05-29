@@ -407,7 +407,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         if (holder == null) {
             throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
-        if (OpenTelemetryService.isThreadPoolAllowed(Names.GENERIC)) {
+        if (OpenTelemetryService.isThreadPoolAllowed(name)) {
             return OpenTelemetryContextWrapper.wrapTask(holder.executor());
         }
         return holder.executor();

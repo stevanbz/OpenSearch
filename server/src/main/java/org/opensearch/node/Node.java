@@ -32,6 +32,8 @@
 
 package org.opensearch.node;
 
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -485,7 +487,9 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
             OpenTelemetryService.TaskEventListeners.getInstance(taskEventListeners);
-
+            AttributesBuilder attributesBuilder = Attributes.builder();
+            attributesBuilder.put("source_node", nodeEnvironment.nodeId());
+            OpenTelemetryService.globalAttributes = attributesBuilder.build();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);

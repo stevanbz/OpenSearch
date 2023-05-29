@@ -17,6 +17,7 @@ import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class JavaThreadEventListener implements TaskEventListener {
     public static JavaThreadEventListener INSTANCE = new JavaThreadEventListener();
@@ -72,7 +73,7 @@ public class JavaThreadEventListener implements TaskEventListener {
             }
             this.duration = endTime - startTime;
             // meter.gaugeBuilder("CPUUtilization").buildWithCallback(callback -> cpuUtilization = callback);
-            TraceOperationMeters.cpuUtilization.record(((OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime)/duration)*100, attributes);
+            TraceOperationMeters.cpuUtilization.record(((OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId()) / 1_000_000. - this.cpuTime) / duration)*100., attributes);
 
             resetHistogram();
         }
@@ -84,7 +85,7 @@ public class JavaThreadEventListener implements TaskEventListener {
         TraceOperationMeters.elapsedTime.record(0);
     }
 
-    private static final Map<Long, Stack<SupportedMeasurement>> threadCPUUsage = new HashMap<>();
+    private static final Map<Long, Stack<SupportedMeasurement>> threadCPUUsage = new ConcurrentHashMap<>();
 
     @Override
     public void onStart(String operationName, String eventName, Thread t) {
