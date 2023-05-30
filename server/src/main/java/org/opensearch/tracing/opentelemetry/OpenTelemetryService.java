@@ -36,6 +36,9 @@ import org.opensearch.performanceanalyzer.commons.metrics.ThreadIDUtil;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.CPUPagingActivityGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.SchedMetricsGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.linux.LinuxDiskIOMetricsGenerator;
+import org.opensearch.performanceanalyzer.commons.os.CPUObserver;
+import org.opensearch.performanceanalyzer.commons.os.IOObserver;
+import org.opensearch.performanceanalyzer.commons.os.SchedObserver;
 import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
@@ -63,6 +66,10 @@ public class OpenTelemetryService {
     public static final SchedMetricsGenerator schedMetricsGenerator = OSMetricsGeneratorFactory.getInstance().getSchedMetricsGenerator();
 
     public static final LinuxDiskIOMetricsGenerator diskIOMetricsGenerator = ThreadDiskIO.getIOUtilization();
+
+    public static final CPUObserver cpuObserver = new CPUObserver();
+    public static final IOObserver ioObserver = new IOObserver();
+    public static final SchedObserver schedObserver = new SchedObserver();
 
     public static final ThreadIDUtil threadIdUtil = ThreadIDUtil.INSTANCE;
 
@@ -172,6 +179,7 @@ public class OpenTelemetryService {
                     if (INSTANCE == null) {
                         INSTANCE = otelEventListenerList;
                         INSTANCE.add(JavaThreadEventListener.INSTANCE);
+                        INSTANCE.add(DiskStatsEventListener.INSTANCE);
                     }
                 }
             }

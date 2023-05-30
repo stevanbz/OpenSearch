@@ -20,6 +20,9 @@ import org.opensearch.performanceanalyzer.commons.metrics.ThreadIDUtil;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.CPUPagingActivityGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.SchedMetricsGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.linux.LinuxDiskIOMetricsGenerator;
+import org.opensearch.performanceanalyzer.commons.os.CPUObserver;
+import org.opensearch.performanceanalyzer.commons.os.CPUObserver.StatKeys;
+import org.opensearch.performanceanalyzer.commons.os.ResourceObserver;
 import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO;
 import org.opensearch.tracing.TaskEventListener;
 
@@ -41,6 +44,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
     }
 
     private synchronized void emitOtherMetrics(String eventName, long jTid, boolean emit) {
+        ResourceObserver cpuObserver = new CPUObserver();
         ThreadList.ThreadState threadState;
         long nativeThreadID = ThreadIDUtil.INSTANCE.getNativeThreadId(jTid);
         if (nativeThreadID == -1) {
@@ -58,6 +62,8 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
         CPUPagingActivityGenerator threadCPUPagingActivityGenerator =
             OSMetricsGeneratorFactory.getInstance().getPagingActivityGenerator();
         threadCPUPagingActivityGenerator.addSample(String.valueOf(nativeThreadID));
+
+        cpuObserver.observeMetricForThread(String.valueOf(nativeThreadID), StatKeys.PID.getLabel());
 
         SchedMetricsGenerator schedMetricsGenerator =
             OSMetricsGeneratorFactory.getInstance().getSchedMetricsGenerator();
@@ -168,7 +174,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
         }
         Attributes attr = attrBuilder.build();
 
-        /**System.out.println(Span.current());
+        System.out.println(Span.current());
         attr.forEach(
             (k, v) -> {
                 if (v instanceof Double) {
@@ -180,7 +186,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
                     System.out.print("ND=" + k + ":" + v + ", ");
                 }
             });
-        System.out.println("\nDone"); **/
+        System.out.println("\nDone");
         Span.current().addEvent(eventName, attrBuilder.build());
     }
 
