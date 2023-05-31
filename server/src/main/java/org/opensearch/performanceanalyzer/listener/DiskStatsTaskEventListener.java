@@ -16,7 +16,6 @@ import org.opensearch.performanceanalyzer.commons.OSMetricsGeneratorFactory;
 import org.opensearch.performanceanalyzer.commons.collectors.OSMetricsCollector;
 import org.opensearch.performanceanalyzer.commons.jvm.ThreadList;
 import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics;
-import org.opensearch.performanceanalyzer.commons.metrics.ThreadIDUtil;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.CPUPagingActivityGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.SchedMetricsGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.linux.LinuxDiskIOMetricsGenerator;
@@ -24,6 +23,7 @@ import org.opensearch.performanceanalyzer.commons.os.CPUObserver;
 import org.opensearch.performanceanalyzer.commons.os.CPUObserver.StatKeys;
 import org.opensearch.performanceanalyzer.commons.os.ResourceObserver;
 import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO;
+import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
 import org.opensearch.tracing.TaskEventListener;
 
 public class DiskStatsTaskEventListener implements TaskEventListener {
@@ -61,15 +61,15 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
         }
         CPUPagingActivityGenerator threadCPUPagingActivityGenerator =
             OSMetricsGeneratorFactory.getInstance().getPagingActivityGenerator();
-        threadCPUPagingActivityGenerator.addSample(String.valueOf(nativeThreadID));
+        // threadCPUPagingActivityGenerator.addSample(String.valueOf(nativeThreadID));
 
         cpuObserver.observeMetricForThread(String.valueOf(nativeThreadID), StatKeys.PID.getLabel());
 
         SchedMetricsGenerator schedMetricsGenerator =
             OSMetricsGeneratorFactory.getInstance().getSchedMetricsGenerator();
-        schedMetricsGenerator.addSample(String.valueOf(nativeThreadID));
+        // schedMetricsGenerator.addSample(String.valueOf(nativeThreadID));
 
-        ThreadDiskIO.addSample(String.valueOf(nativeThreadID));
+        // ThreadDiskIO.addSample(String.valueOf(nativeThreadID));
         AttributesBuilder attrBuilder = Attributes.builder();
 
         attrBuilder.put("eventName", eventName);
@@ -104,7 +104,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
                     diskIOMetricsGenerator.getAvgTotalSyscallRate(
                         String.valueOf(nativeThreadID)));
 
-                attrBuilder.put(
+                /** attrBuilder.put(
                     AttributeKey.doubleKey("PageCacheReadThroughputBps"),
                     diskIOMetricsGenerator.getAvgPageCacheReadThroughputBps(
                         String.valueOf(nativeThreadID)));
@@ -115,7 +115,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
                 attrBuilder.put(
                     AttributeKey.doubleKey("PageCacheTotalThroughputBps"),
                     diskIOMetricsGenerator.getAvgPageCacheTotalThroughputBps(
-                        String.valueOf(nativeThreadID)));
+                        String.valueOf(nativeThreadID))); **/
             }
 
             if (threadCPUPagingActivityGenerator.hasPagingActivity(

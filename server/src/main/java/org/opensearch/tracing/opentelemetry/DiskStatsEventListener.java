@@ -8,21 +8,22 @@
 
 package org.opensearch.tracing.opentelemetry;
 
+import static org.opensearch.performanceanalyzer.commons.os.calculator.CPUMetricsCalculator.calculateThreadCpuPagingActivity;
+import static org.opensearch.performanceanalyzer.commons.os.calculator.DiskIOMetricsCalculator.calculateIOMetrics;
+import static org.opensearch.performanceanalyzer.commons.os.calculator.SchedMetricsCalculator.calculateThreadSchedLatency;
+
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
-import io.opentelemetry.api.trace.Span;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Stack;
 import org.opensearch.performanceanalyzer.commons.collectors.OSMetricsCollector;
 import org.opensearch.performanceanalyzer.commons.jvm.ThreadList;
-import org.opensearch.performanceanalyzer.commons.os.ThreadCPUMetricsGenerator;
-import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO;
-import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO.IOMetrics;
-import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIOMetricGenerator;
+import org.opensearch.performanceanalyzer.commons.os.metrics.CPUMetrics;
+import org.opensearch.performanceanalyzer.commons.os.metrics.IOMetrics;
+import org.opensearch.performanceanalyzer.commons.os.metrics.SchedMetrics;
 import org.opensearch.tracing.TaskEventListener;
 import org.opensearch.tracing.opentelemetry.meters.DiskTraceOperationMeters;
 
@@ -31,70 +32,21 @@ public class DiskStatsEventListener implements TaskEventListener {
 
     static class SupportedMeasurement {
         public long startTime;
-
         public long endTime;
-        // Disk IO metrics
-        public double readThroughputBps;
-
-        public double writeThroughputBps;
-
-        public double totalThroughputBps;
-
-        public double readSyscallRate;
-
-        public double writeSyscallRate;
-
-        public double totalSyscallRate;
-
-        public double pageCacheReadThroughputBps;
-
-        public double pageCacheWriteThroughputBps;
-
-        public double pageCacheTotalThroughputBps;
-        // CPU metrics
-        public double cpuUtilization;
-
-        public double pagingMajFltRate;
-
-        public double pagingMinFltRate;
-
-        public double pagingRss;
-        // Sched metrics
-        public double schedRunTime;
-        public double schedWaitTime;
-        public double schedCtxRate;
-        // Thread info
-        public String threadName;
-        public double heapAllocRate;
-        public long blockedCount;
-        public long blockedTime;
-        public long waitedCount;
-        public long waitedTime;
-
-        public Thread t;
-
         public String nativeThreadId;
-
-        public long duration;
-        private final boolean threadContentionEnabled;
-
-        private Map<String, Object> cpuThreadStartDetails;
-        private Map<String, Long> diskIOThreadStartDetails;
-        private Map<String, Object> schedThreadStartDetails;
-
+        private Map<String, Object> cpuThreadDetailsMap;
+        private Map<String, Long> diskIOThreadDetailsMap;
+        private Map<String, Object> schedThreadDetailsMap;
         private ThreadList.ThreadState threadState;
 
         private SupportedMeasurement() {
-            threadContentionEnabled = false;
-            cpuThreadStartDetails = new HashMap<>();
-            diskIOThreadStartDetails = new HashMap<>();
-            schedThreadStartDetails = new HashMap<>();
+            cpuThreadDetailsMap = new HashMap<>();
+            diskIOThreadDetailsMap = new HashMap<>();
+            schedThreadDetailsMap = new HashMap<>();
         }
 
         public SupportedMeasurement(Thread t, boolean threadContentionEnabled) {
             startTime = System.currentTimeMillis();
-
-            this.threadContentionEnabled = threadContentionEnabled;
             long jTid = t.getId();
 
             long nativeThreadID = OpenTelemetryService.threadIdUtil.getNativeThreadId(t.getId());
@@ -113,77 +65,9 @@ public class DiskStatsEventListener implements TaskEventListener {
 
             this.nativeThreadId = String.valueOf(nativeThreadID);
 
-            this.cpuThreadStartDetails = OpenTelemetryService.cpuObserver.observe(nativeThreadId);
-            this.diskIOThreadStartDetails = (Map)OpenTelemetryService.ioObserver.observe(nativeThreadId);
-            this.schedThreadStartDetails = OpenTelemetryService.schedObserver.observe(nativeThreadId);
-
-//            OpenTelemetryService.threadCPUPagingActivityGenerator.addSample(String.valueOf(nativeThreadID));
-//
-//            OpenTelemetryService.schedMetricsGenerator.addSample(String.valueOf(nativeThreadID));
-//
-//            ThreadDiskIO.addSample(String.valueOf(nativeThreadID));
-//
-//            if (OpenTelemetryService.diskIOMetricsGenerator.hasDiskIOMetrics(String.valueOf(nativeThreadID))) {
-//                readThroughputBps =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgReadThroughputBps(
-//                        String.valueOf(nativeThreadID));
-//                writeThroughputBps =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgWriteThroughputBps(
-//                        String.valueOf(nativeThreadID));
-//                totalThroughputBps =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgTotalThroughputBps(
-//                        String.valueOf(nativeThreadID));
-//                readSyscallRate =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgReadSyscallRate(
-//                        String.valueOf(nativeThreadID));
-//                writeSyscallRate =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgWriteSyscallRate(
-//                        String.valueOf(nativeThreadID));
-//                totalSyscallRate =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgTotalSyscallRate(
-//                        String.valueOf(nativeThreadID));
-//                pageCacheReadThroughputBps =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgPageCacheReadThroughputBps(
-//                        String.valueOf(nativeThreadID));
-//                pageCacheWriteThroughputBps =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgPageCacheWriteThroughputBps(
-//                        String.valueOf(nativeThreadID));
-//                pageCacheTotalThroughputBps =
-//                    OpenTelemetryService.diskIOMetricsGenerator.getAvgPageCacheTotalThroughputBps(
-//                        String.valueOf(nativeThreadID));
-//            }
-//
-//            if (OpenTelemetryService.threadCPUPagingActivityGenerator.hasPagingActivity(
-//                String.valueOf(nativeThreadID))) {
-//                cpuUtilization =
-//                    OpenTelemetryService.threadCPUPagingActivityGenerator.getCPUUtilization(
-//                        String.valueOf(nativeThreadID));
-//                pagingMajFltRate =
-//                    OpenTelemetryService.threadCPUPagingActivityGenerator.getMajorFault(
-//                        String.valueOf(nativeThreadID));
-//                pagingMinFltRate =
-//                    OpenTelemetryService.threadCPUPagingActivityGenerator.getMinorFault(
-//                        String.valueOf(nativeThreadID));
-//                pagingRss =
-//                    OpenTelemetryService.threadCPUPagingActivityGenerator.getResidentSetSize(
-//                        String.valueOf(nativeThreadID));
-//            }
-//            if (OpenTelemetryService.schedMetricsGenerator.hasSchedMetrics(String.valueOf(nativeThreadID))) {
-//                schedRunTime =
-//                    OpenTelemetryService.schedMetricsGenerator.getAvgRuntime(String.valueOf(nativeThreadID));
-//                schedWaitTime =
-//                    OpenTelemetryService.schedMetricsGenerator.getAvgWaittime(String.valueOf(nativeThreadID));
-//                schedCtxRate =
-//                    OpenTelemetryService.schedMetricsGenerator.getContextSwitchRate(String.valueOf(nativeThreadID));
-//            }
-//            if (threadState != null) {
-//                threadName = threadState.threadName;
-//                heapAllocRate = threadState.heapAllocRate;
-//                blockedCount = threadState.blockedCount;
-//                blockedTime = threadState.blockedTime;
-//                waitedCount = threadState.waitedCount;
-//                waitedTime = threadState.waitedTime;
-//            }
+            this.cpuThreadDetailsMap = OpenTelemetryService.cpuObserver.observe(nativeThreadId);
+            this.diskIOThreadDetailsMap = OpenTelemetryService.ioObserver.observe(nativeThreadId);
+            this.schedThreadDetailsMap = OpenTelemetryService.schedObserver.observe(nativeThreadId);
         }
 
         private static void resetHistogram() {
@@ -206,46 +90,40 @@ public class DiskStatsEventListener implements TaskEventListener {
 
             Map<String, Object> mapOfValues = new HashMap<>();
 
+            // Get resource metrics for thread
             Map<String, Object> endCpuDetails = OpenTelemetryService.cpuObserver.observe(nativeThreadId);
-            if (endCpuDetails.isEmpty() == false) {
-                double cpuUtilization = ThreadCPUMetricsGenerator.calculateThreadCPUDetails(
-                    endCpuDetails,
-                    cpuThreadStartDetails,
-                    startTime,
-                    endTime
-                );
-                double majorFault = ThreadCPUMetricsGenerator.calculateMajorFault(
-                    endCpuDetails,
-                    cpuThreadStartDetails,
-                    startTime,
-                    endTime
-                );
-                double minorFault = ThreadCPUMetricsGenerator.calculateMinorFault(
-                    endCpuDetails,
-                    cpuThreadStartDetails,
-                    startTime,
-                    endTime
-                );
-                double rss = ThreadCPUMetricsGenerator.getResidentSetSize(endCpuDetails);
-
-                DiskTraceOperationMeters.cpuUtilization.record(cpuUtilization, attributes);
-                mapOfValues.put("cpuUtilization", cpuUtilization);
-                DiskTraceOperationMeters.pagingMajFltRate.record(majorFault, attributes);
-                mapOfValues.put("pagingMajFltRate", pagingMajFltRate);
-                DiskTraceOperationMeters.pagingMinFltRate.record(minorFault, attributes);
-                mapOfValues.put("pagingMinFltRate", pagingMinFltRate);
-                DiskTraceOperationMeters.pagingRss.record(rss, attributes);
-                mapOfValues.put("pagingRss", pagingRss);
-
-            }
             Map<String, Long> endDiskIODetails = OpenTelemetryService.ioObserver.observe(nativeThreadId);
+            Map<String, Object> endSchedODetails = OpenTelemetryService.schedObserver.observe(nativeThreadId);
+
+            if (endCpuDetails.isEmpty() == false) {
+                CPUMetrics cpuMetrics = calculateThreadCpuPagingActivity(
+                    endTime,
+                    startTime,
+                    endCpuDetails,
+                    cpuThreadDetailsMap
+                );
+
+                if (cpuMetrics != null) {
+                    DiskTraceOperationMeters.cpuUtilization.record(cpuMetrics.cpuUtilization, attributes);
+                    mapOfValues.put("cpuUtilization", cpuMetrics.cpuUtilization);
+
+                    DiskTraceOperationMeters.pagingMajFltRate.record(cpuMetrics.majorFault, attributes);
+                    mapOfValues.put("pagingMajFltRate", cpuMetrics.majorFault);
+
+                    DiskTraceOperationMeters.pagingMinFltRate.record(cpuMetrics.minorFault, attributes);
+                    mapOfValues.put("pagingMinFltRate", cpuMetrics.minorFault);
+
+                    DiskTraceOperationMeters.pagingRss.record(cpuMetrics.residentSetSize, attributes);
+                    mapOfValues.put("pagingRss", cpuMetrics.residentSetSize);
+                }
+            }
 
             if (endDiskIODetails.isEmpty() == false) {
-                IOMetrics diskIOMetrics = ThreadDiskIOMetricGenerator.calculateIOMetrics(
-                    endDiskIODetails,
-                    diskIOThreadStartDetails,
+                IOMetrics diskIOMetrics = calculateIOMetrics(
+                    endTime,
                     startTime,
-                    endTime);
+                    endDiskIODetails,
+                    diskIOThreadDetailsMap);
 
                 if (diskIOMetrics != null) {
                     DiskTraceOperationMeters.readThroughputBps.record(diskIOMetrics.avgReadThroughputBps, attributes);
@@ -268,12 +146,23 @@ public class DiskStatsEventListener implements TaskEventListener {
                     mapOfValues.put("pageCacheTotalThroughputBps", diskIOMetrics.avgPageCacheTotalThroughputBps);
                 }
             }
-            Map<String, Object> endSchedODetails = OpenTelemetryService.schedObserver.observe(nativeThreadId);
+
             if (endSchedODetails.isEmpty() == false) {
-                // TODO
-                DiskTraceOperationMeters.schedRunTime.record(0, attributes);
-                DiskTraceOperationMeters.schedWaitTime.record(0, attributes);
-                DiskTraceOperationMeters.schedCtxRate.record(0, attributes);
+                SchedMetrics schedMetrics = calculateThreadSchedLatency(
+                    endTime,
+                    startTime,
+                    endSchedODetails,
+                    schedThreadDetailsMap
+                );
+
+                if (schedMetrics != null) {
+                    DiskTraceOperationMeters.schedRunTime.record(schedMetrics.avgRuntime, attributes);
+                    mapOfValues.put("schedRunTime", schedMetrics.avgRuntime);
+                    DiskTraceOperationMeters.schedWaitTime.record(schedMetrics.avgWaittime, attributes);
+                    mapOfValues.put("schedWaitTime", schedMetrics.avgWaittime);
+                    DiskTraceOperationMeters.schedCtxRate.record(schedMetrics.contextSwitchRate, attributes);
+                    mapOfValues.put("schedCtxRate", schedMetrics.contextSwitchRate);
+                }
             }
             if (threadState != null) {
                 DiskTraceOperationMeters.heapAllocRate.record(threadState.heapAllocRate, attributes);
@@ -300,8 +189,6 @@ public class DiskStatsEventListener implements TaskEventListener {
                     }
                 });
             System.out.println("\nDone");
-
-            this.duration = endTime - startTime;
             // meter.gaugeBuilder("CPUUtilization").buildWithCallback(callback -> cpuUtilization = callback);
             resetHistogram();
         }

@@ -75,7 +75,7 @@ public class DiskTraceOperationMeters {
         writeSyscallRate.record(0);
         totalSyscallRate.record(0);
         pageCacheReadThroughputBps.record(0);
-        pageCacheWriteThroughputBps.record(0);;
+        pageCacheWriteThroughputBps.record(0);
         pageCacheTotalThroughputBps.record(0);
 
         cpuUtilization.record(0);
