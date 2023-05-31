@@ -188,4 +188,6 @@ grant {
   permission java.net.SocketPermission "127.0.0.1:4317", "connect,resolve";
   permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]:4317", "connect,resolve";
   permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]:4318", "connect,resolve";
+  permission java.lang.management.ManagementPermission "control";
+  permission java.lang.management.ManagementPermission "monitor";
 };

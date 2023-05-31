@@ -65,16 +65,15 @@ public class JavaThreadEventListener implements TaskEventListener {
             TraceOperationMeters.cpuTime.record(OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId())/1_000_000. - this.cpuTime, attributes);
             TraceOperationMeters.heapAllocatedBytes.record(OpenTelemetryService.threadMXBean.getThreadAllocatedBytes(t.getId()) - this.heapAllocatedBytes,
                 attributes);
-            if (false) {
-                TraceOperationMeters.blockedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedCount() - this.blockedCount, attributes);
-                TraceOperationMeters.waitedCount.add(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedCount() - this.waitedCount, attributes);
+            if (OpenTelemetryService.threadMXBean.isThreadContentionMonitoringEnabled()) {
+                TraceOperationMeters.blockedCount.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedCount() - this.blockedCount, attributes);
+                TraceOperationMeters.waitedCount.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedCount() - this.waitedCount, attributes);
                 TraceOperationMeters.blockedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getBlockedTime() - this.blockedTime, attributes);
                 TraceOperationMeters.waitedTime.record(OpenTelemetryService.threadMXBean.getThreadInfo(t.getId()).getWaitedTime() - this.waitedTime, attributes);
             }
             this.duration = endTime - startTime;
             // meter.gaugeBuilder("CPUUtilization").buildWithCallback(callback -> cpuUtilization = callback);
             TraceOperationMeters.cpuUtilization.record(((OpenTelemetryService.threadMXBean.getThreadCpuTime(t.getId()) / 1_000_000. - this.cpuTime) / duration)*100., attributes);
-
             resetHistogram();
         }
     }
@@ -83,6 +82,10 @@ public class JavaThreadEventListener implements TaskEventListener {
         TraceOperationMeters.cpuTime.record(0);
         TraceOperationMeters.heapAllocatedBytes.record(0);
         TraceOperationMeters.elapsedTime.record(0);
+        if (OpenTelemetryService.threadMXBean.isThreadContentionMonitoringEnabled()) {
+            TraceOperationMeters.blockedTime.record(0);
+            TraceOperationMeters.waitedTime.record(0);
+        }
     }
 
     private static final Map<Long, Stack<SupportedMeasurement>> threadCPUUsage = new ConcurrentHashMap<>();
