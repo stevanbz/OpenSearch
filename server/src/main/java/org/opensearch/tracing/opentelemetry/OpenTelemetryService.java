@@ -71,8 +71,8 @@ public class OpenTelemetryService {
             .build();
         sdkTracerProvider = SdkTracerProvider.builder()
             // .addSpanProcessor(SimpleSpanProcessor.create(OtlpHttpSpanExporter.builder().build()))
-            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-            .addSpanProcessor(BatchSpanProcessor.builder(LoggingSpanExporter.create()).build())
+            .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
+            // .addSpanProcessor(BatchSpanProcessor.builder(LoggingSpanExporter.create()).build())
             .setResource(resource)
             .build();
 
