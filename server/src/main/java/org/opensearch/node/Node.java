@@ -490,6 +490,9 @@ public class Node implements Closeable {
             AttributesBuilder attributesBuilder = Attributes.builder();
             attributesBuilder.put("source-node", nodeEnvironment.nodeId());
             OpenTelemetryService.globalAttributes = attributesBuilder.build();
+            if (OpenTelemetryService.threadMXBean.isThreadContentionMonitoringSupported()) {
+                OpenTelemetryService.threadMXBean.setThreadContentionMonitoringEnabled(true);
+            }
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);

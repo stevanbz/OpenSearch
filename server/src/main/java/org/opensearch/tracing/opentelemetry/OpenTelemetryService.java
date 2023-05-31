@@ -69,7 +69,6 @@ public class OpenTelemetryService {
     public static Attributes globalAttributes;
 
     static {
-        // threadMXBean.setThreadContentionMonitoringEnabled(true);
         resource = Resource.getDefault()
             .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "opensearch-tasks-1")));
 
