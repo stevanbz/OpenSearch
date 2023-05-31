@@ -218,7 +218,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             AttributesBuilder attributesBuilder = Attributes.builder();
             attributesBuilder.put(stringKey("index-name"), request.shardId().getIndexName());
             attributesBuilder.put(stringKey("shard-id"), String.valueOf(request.shardId().id()));
-            attributesBuilder.put(stringKey("source-node"), request.sourceNode().getId());
+            // attributesBuilder.put(stringKey("source-node"), request.sourceNode().getId());
             attributesBuilder.put(stringKey("target-node"), request.targetNode().getId());
             OpenTelemetryService.callFunctionAndStartSpan("recover", recoverFunction,
                 new ChannelActionListener<>(channel, Actions.START_RECOVERY, request), attributesBuilder.build(), request);

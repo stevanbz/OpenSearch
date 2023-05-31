@@ -488,7 +488,7 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
             OpenTelemetryService.TaskEventListeners.getInstance(taskEventListeners);
             AttributesBuilder attributesBuilder = Attributes.builder();
-            attributesBuilder.put("source_node", nodeEnvironment.nodeId());
+            attributesBuilder.put("source-node", nodeEnvironment.nodeId());
             OpenTelemetryService.globalAttributes = attributesBuilder.build();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
