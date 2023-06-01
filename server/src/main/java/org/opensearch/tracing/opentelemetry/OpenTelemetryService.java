@@ -32,8 +32,14 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedSupplier;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.IOObserver;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.SchedObserver;
+import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 
 import java.lang.management.ManagementFactory;
@@ -52,6 +58,12 @@ public class OpenTelemetryService {
     public static OpenTelemetry openTelemetry;
     private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH, "transport");
     public static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    public static final CPUObserver cpuObserver = new CPUObserver();
+    public static final IOObserver ioObserver = new IOObserver();
+    public static final SchedObserver schedObserver = new SchedObserver();
+
+    public static final ThreadIDUtil threadIdUtil = ThreadIDUtil.INSTANCE;
 
     public static Attributes globalAttributes;
 
@@ -204,6 +216,7 @@ public class OpenTelemetryService {
                     if (INSTANCE == null) {
                         INSTANCE = otelEventListenerList;
                         INSTANCE.add(JavaThreadEventListener.INSTANCE);
+                        INSTANCE.add(DiskStatsEventListener.INSTANCE);
                     }
                 }
             }

@@ -161,6 +161,16 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  api files('/home/stevan/.m2/repository/org/opensearch/performance-analyzer-commons/1.0.0-SNAPSHOT/performance-analyzer-commons-1.0.0-SNAPSHOT.jar')
+
+  api ("org.opensearch:performance-analyzer-commons:1.0.0-SNAPSHOT") {
+    exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-core')
+    exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-annotations')
+    exclude (group: 'com.fasterxml.jackson', module: 'jackson-bom')
+    exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-databind')
+  }
+
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
