@@ -19,13 +19,14 @@ import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.CPUPagingActivityGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.SchedMetricsGenerator;
 import org.opensearch.performanceanalyzer.commons.metrics_generator.linux.LinuxDiskIOMetricsGenerator;
-import org.opensearch.performanceanalyzer.commons.os.CPUObserver;
-import org.opensearch.performanceanalyzer.commons.os.CPUObserver.StatKeys;
-import org.opensearch.performanceanalyzer.commons.os.ResourceObserver;
 import org.opensearch.performanceanalyzer.commons.os.ThreadDiskIO;
+import org.opensearch.performanceanalyzer.commons.os.observer.ResourceObserver;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver.StatKeys;
 import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
 import org.opensearch.tracing.TaskEventListener;
 
+@Deprecated
 public class DiskStatsTaskEventListener implements TaskEventListener {
     private final boolean threadContentionEnabled;
 

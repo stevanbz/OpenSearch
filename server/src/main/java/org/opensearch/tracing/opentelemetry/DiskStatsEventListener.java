@@ -8,9 +8,9 @@
 
 package org.opensearch.tracing.opentelemetry;
 
-import static org.opensearch.performanceanalyzer.commons.os.calculator.CPUMetricsCalculator.calculateThreadCpuPagingActivity;
-import static org.opensearch.performanceanalyzer.commons.os.calculator.DiskIOMetricsCalculator.calculateIOMetrics;
-import static org.opensearch.performanceanalyzer.commons.os.calculator.SchedMetricsCalculator.calculateThreadSchedLatency;
+import static org.opensearch.performanceanalyzer.commons.os.metrics.CPUMetricsCalculator.calculateThreadCpuPagingActivity;
+import static org.opensearch.performanceanalyzer.commons.os.metrics.DiskIOMetricsCalculator.calculateIOMetrics;
+import static org.opensearch.performanceanalyzer.commons.os.metrics.SchedMetricsCalculator.calculateThreadSchedLatency;
 
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.common.AttributeKey;
@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Stack;
 import org.opensearch.performanceanalyzer.commons.collectors.OSMetricsCollector;
 import org.opensearch.performanceanalyzer.commons.jvm.ThreadList;
+import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics;
+import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics.OSMetrics;
 import org.opensearch.performanceanalyzer.commons.os.metrics.CPUMetrics;
 import org.opensearch.performanceanalyzer.commons.os.metrics.IOMetrics;
 import org.opensearch.performanceanalyzer.commons.os.metrics.SchedMetrics;
@@ -105,16 +107,16 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (cpuMetrics != null) {
                     DiskTraceOperationMeters.cpuUtilization.record(cpuMetrics.cpuUtilization, attributes);
-                    mapOfValues.put("cpuUtilization", cpuMetrics.cpuUtilization);
+                    mapOfValues.put(OSMetrics.CPU_UTILIZATION.toString(), cpuMetrics.cpuUtilization);
 
                     DiskTraceOperationMeters.pagingMajFltRate.record(cpuMetrics.majorFault, attributes);
-                    mapOfValues.put("pagingMajFltRate", cpuMetrics.majorFault);
+                    mapOfValues.put(OSMetrics.PAGING_MAJ_FLT_RATE.toString(), cpuMetrics.majorFault);
 
                     DiskTraceOperationMeters.pagingMinFltRate.record(cpuMetrics.minorFault, attributes);
-                    mapOfValues.put("pagingMinFltRate", cpuMetrics.minorFault);
+                    mapOfValues.put(OSMetrics.PAGING_MIN_FLT_RATE.toString(), cpuMetrics.minorFault);
 
                     DiskTraceOperationMeters.pagingRss.record(cpuMetrics.residentSetSize, attributes);
-                    mapOfValues.put("pagingRss", cpuMetrics.residentSetSize);
+                    mapOfValues.put(OSMetrics.PAGING_RSS.toString(), cpuMetrics.residentSetSize);
                 }
             }
 
@@ -127,23 +129,31 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (diskIOMetrics != null) {
                     DiskTraceOperationMeters.readThroughputBps.record(diskIOMetrics.avgReadThroughputBps, attributes);
-                    mapOfValues.put("readThroughputBps", diskIOMetrics.avgReadThroughputBps);
+                    mapOfValues.put("ReadThroughputBps", diskIOMetrics.avgReadThroughputBps);
+
                     DiskTraceOperationMeters.writeThroughputBps.record(diskIOMetrics.avgWriteThroughputBps, attributes);
-                    mapOfValues.put("writeThroughputBps", diskIOMetrics.avgWriteThroughputBps);
+                    mapOfValues.put("WriteThroughputBps", diskIOMetrics.avgWriteThroughputBps);
+
                     DiskTraceOperationMeters.totalThroughputBps.record(diskIOMetrics.avgTotalThroughputBps, attributes);
-                    mapOfValues.put("totalThroughputBps", diskIOMetrics.avgTotalThroughputBps);
+                    mapOfValues.put("TotalThroughputBps", diskIOMetrics.avgTotalThroughputBps);
+
                     DiskTraceOperationMeters.readSyscallRate.record(diskIOMetrics.avgReadSyscallRate, attributes);
-                    mapOfValues.put("readSyscallRate", diskIOMetrics.avgReadSyscallRate);
+                    mapOfValues.put("ReadSyscallRate", diskIOMetrics.avgReadSyscallRate);
+
                     DiskTraceOperationMeters.writeSyscallRate.record(diskIOMetrics.avgWriteSyscallRate, attributes);
-                    mapOfValues.put("writeSyscallRate", diskIOMetrics.avgWriteSyscallRate);
+                    mapOfValues.put("WriteSyscallRate", diskIOMetrics.avgWriteSyscallRate);
+
                     DiskTraceOperationMeters.totalSyscallRate.record(diskIOMetrics.avgTotalSyscallRate, attributes);
-                    mapOfValues.put("totalSyscallRate", diskIOMetrics.avgTotalSyscallRate);
+                    mapOfValues.put("TotalSyscallRate", diskIOMetrics.avgTotalSyscallRate);
+
                     DiskTraceOperationMeters.pageCacheReadThroughputBps.record(diskIOMetrics.avgPageCacheReadThroughputBps, attributes);
-                    mapOfValues.put("pageCacheReadThroughputBps", diskIOMetrics.avgPageCacheReadThroughputBps);
+                    mapOfValues.put("PageCacheReadThroughputBps", diskIOMetrics.avgPageCacheReadThroughputBps);
+
                     DiskTraceOperationMeters.pageCacheWriteThroughputBps.record(diskIOMetrics.avgPageCacheWriteThroughputBps, attributes);
-                    mapOfValues.put("pageCacheWriteThroughputBps", diskIOMetrics.avgPageCacheWriteThroughputBps);
+                    mapOfValues.put("PageCacheWriteThroughputBps", diskIOMetrics.avgPageCacheWriteThroughputBps);
+
                     DiskTraceOperationMeters.pageCacheTotalThroughputBps.record(diskIOMetrics.avgPageCacheTotalThroughputBps, attributes);
-                    mapOfValues.put("pageCacheTotalThroughputBps", diskIOMetrics.avgPageCacheTotalThroughputBps);
+                    mapOfValues.put("PageCacheTotalThroughputBps", diskIOMetrics.avgPageCacheTotalThroughputBps);
                 }
             }
 
@@ -157,24 +167,30 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (schedMetrics != null) {
                     DiskTraceOperationMeters.schedRunTime.record(schedMetrics.avgRuntime, attributes);
-                    mapOfValues.put("schedRunTime", schedMetrics.avgRuntime);
+                    mapOfValues.put(AllMetrics.OSMetrics.SCHED_RUNTIME.toString(), schedMetrics.avgRuntime);
+
                     DiskTraceOperationMeters.schedWaitTime.record(schedMetrics.avgWaittime, attributes);
-                    mapOfValues.put("schedWaitTime", schedMetrics.avgWaittime);
+                    mapOfValues.put(OSMetrics.SCHED_WAITTIME.toString(), schedMetrics.avgWaittime);
+
                     DiskTraceOperationMeters.schedCtxRate.record(schedMetrics.contextSwitchRate, attributes);
-                    mapOfValues.put("schedCtxRate", schedMetrics.contextSwitchRate);
+                    mapOfValues.put(OSMetrics.SCHED_CTX_RATE.toString(), schedMetrics.contextSwitchRate);
                 }
             }
             if (threadState != null) {
                 DiskTraceOperationMeters.heapAllocRate.record(threadState.heapAllocRate, attributes);
-                mapOfValues.put("heapAllocRate", threadState.heapAllocRate);
+                mapOfValues.put(AllMetrics.OSMetrics.HEAP_ALLOC_RATE.name(), threadState.heapAllocRate);
+
                 DiskTraceOperationMeters.blockedCount.add(threadState.blockedCount, attributes);
-                mapOfValues.put("blockedCount", threadState.blockedCount);
+                mapOfValues.put(OSMetrics.THREAD_BLOCKED_EVENT.name(), threadState.blockedCount);
+
                 DiskTraceOperationMeters.blockedTime.add(threadState.blockedTime, attributes);
-                mapOfValues.put("blockedTime", threadState.blockedTime);
+                mapOfValues.put(OSMetrics.THREAD_BLOCKED_TIME.name(), threadState.blockedTime);
+
                 DiskTraceOperationMeters.waitedCount.add(threadState.waitedCount, attributes);
-                mapOfValues.put("waitedCount", threadState.waitedCount);
+                mapOfValues.put(AllMetrics.OSMetrics.THREAD_WAITED_EVENT.toString(), threadState.waitedCount);
+
                 DiskTraceOperationMeters.waitedTime.add(threadState.waitedTime, attributes);
-                mapOfValues.put("waitedTime", threadState.waitedTime);
+                mapOfValues.put(AllMetrics.OSMetrics.THREAD_WAITED_TIME.toString(), threadState.waitedTime);
             }
 
             mapOfValues.forEach(
