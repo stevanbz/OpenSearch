@@ -29,14 +29,11 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.CheckedSupplier;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
 
 import java.lang.management.ManagementFactory;
@@ -141,6 +138,7 @@ public class OpenTelemetryService {
                 callTaskEventListeners(true, "", spanName + "-Start", Thread.currentThread(),
                     TaskEventListeners.getInstance(null));
                 result = originalFunction.apply(t);
+                // TODO - shoud be moved to finally -
                 callTaskEventListeners(false, "", spanName + "-End", Thread.currentThread(),
                     TaskEventListeners.getInstance(null));
             } finally {
