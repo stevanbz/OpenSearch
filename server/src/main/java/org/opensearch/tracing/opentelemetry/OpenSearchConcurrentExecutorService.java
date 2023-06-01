@@ -92,29 +92,36 @@ final public class OpenSearchConcurrentExecutorService extends OpenSearchForward
 
     private static <T> Callable<T> wrapTask(Callable<T> callable, List<TaskEventListener> taskEventListeners) {
         return () -> {
-            try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
-                OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
-                    Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
+            if (Context.current() != Context.root()) {
+                try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
+                    OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
+                        Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
+                    return callable.call();
+                } finally {
+                    OpenTelemetryService.callTaskEventListeners(false, "", Span.current().getSpanContext().getSpanId() + "-" +
+                        Thread.currentThread().getName() + "-End", Thread.currentThread(), taskEventListeners);
+                }
+            } else {
                 return callable.call();
-            } finally {
-                OpenTelemetryService.callTaskEventListeners(false, "", Span.current().getSpanContext().getSpanId() + "-" +
-                    Thread.currentThread().getName() + "-End", Thread.currentThread(), taskEventListeners);
             }
         };
     }
 
     static Runnable wrapTask(Runnable runnable, List<TaskEventListener> taskEventListeners) {
         return () -> {
-            try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
-                OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
-                    Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
+            if (Context.current() != Context.root()) {
+                try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
+                    OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
+                        Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
+                    runnable.run();
+                } finally {
+                    OpenTelemetryService.callTaskEventListeners(false, "", Span.current().getSpanContext().getSpanId() + "-" +
+                        Thread.currentThread().getName() + "-End", Thread.currentThread(), taskEventListeners);
+                }
+            } else {
                 runnable.run();
-            } finally {
-                OpenTelemetryService.callTaskEventListeners(false, "", Span.current().getSpanContext().getSpanId() + "-" +
-                    Thread.currentThread().getName() + "-End", Thread.currentThread(), taskEventListeners);
             }
         };
     }
-
 
 }
