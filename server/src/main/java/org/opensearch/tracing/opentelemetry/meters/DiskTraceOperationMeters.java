@@ -9,7 +9,7 @@
 package org.opensearch.tracing.opentelemetry.meters;
 
 import io.opentelemetry.api.metrics.DoubleHistogram;
-import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.Meter;
 import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics;
 import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics.OSMetrics;
@@ -34,10 +34,10 @@ public class DiskTraceOperationMeters {
     public static DoubleHistogram schedWaitTime;
     public static DoubleHistogram schedCtxRate;
     public static DoubleHistogram heapAllocRate;
-    public static LongCounter blockedCount;
-    public static LongCounter blockedTime;
-    public static LongCounter waitedCount;
-    public static LongCounter waitedTime;
+    public static LongHistogram blockedCount;
+    public static DoubleHistogram blockedTime;
+    public static LongHistogram waitedCount;
+    public static DoubleHistogram waitedTime;
 
     static  {
         Meter meter = getMeter();
@@ -51,7 +51,7 @@ public class DiskTraceOperationMeters {
         pageCacheWriteThroughputBps = meter.histogramBuilder("PageCacheWriteThroughputBps").build();
         pageCacheTotalThroughputBps = meter.histogramBuilder("PageCacheTotalThroughputBps").build();
 
-        cpuUtilization = meter.histogramBuilder(AllMetrics.OSMetrics.CPU_UTILIZATION.toString()).build();
+        cpuUtilization = meter.histogramBuilder("CPUUtilizationPA").build();
         pagingMajFltRate = meter.histogramBuilder(AllMetrics.OSMetrics.PAGING_MAJ_FLT_RATE.toString()).build();
         pagingMinFltRate = meter.histogramBuilder(AllMetrics.OSMetrics.PAGING_MIN_FLT_RATE.toString()).build();
         pagingRss = meter.histogramBuilder(AllMetrics.OSMetrics.PAGING_RSS.toString()).build();
@@ -61,10 +61,10 @@ public class DiskTraceOperationMeters {
         schedCtxRate =  meter.histogramBuilder(AllMetrics.OSMetrics.SCHED_CTX_RATE.toString()).build();
 
         heapAllocRate = meter.histogramBuilder(AllMetrics.OSMetrics.HEAP_ALLOC_RATE.name()).build();
-        blockedCount = meter.counterBuilder(OSMetrics.THREAD_BLOCKED_EVENT.toString()).build();
-        blockedTime = meter.counterBuilder(OSMetrics.THREAD_WAITED_TIME.toString()).build();
-        waitedCount = meter.counterBuilder(AllMetrics.OSMetrics.THREAD_WAITED_EVENT.toString()).build();
-        waitedTime = meter.counterBuilder(AllMetrics.OSMetrics.THREAD_WAITED_TIME.toString()).build();
+        blockedCount = meter.histogramBuilder(OSMetrics.THREAD_BLOCKED_EVENT.toString()).ofLongs().build();
+        blockedTime = meter.histogramBuilder(OSMetrics.THREAD_WAITED_TIME.toString()).build();
+        waitedCount = meter.histogramBuilder(AllMetrics.OSMetrics.THREAD_WAITED_EVENT.toString()).ofLongs().build();
+        waitedTime = meter.histogramBuilder(AllMetrics.OSMetrics.THREAD_WAITED_TIME.toString()).build();
     }
 
     public static void reset() {
@@ -88,6 +88,11 @@ public class DiskTraceOperationMeters {
         schedCtxRate.record(0);
 
         heapAllocRate.record(0);
+
+        blockedCount.record(0);
+        blockedTime.record(0);
+        waitedCount.record(0);
+        waitedTime.record(0);
     }
 
     public static Meter getMeter() {

@@ -90,14 +90,12 @@ public class DiskStatsEventListener implements TaskEventListener {
             }
             Attributes attributes = attributesBuilder.build();
 
-            Map<String, Object> mapOfValues = new HashMap<>();
-
             // Get resource metrics for thread
             Map<String, Object> endCpuDetails = OpenTelemetryService.cpuObserver.observe(nativeThreadId);
             Map<String, Long> endDiskIODetails = OpenTelemetryService.ioObserver.observe(nativeThreadId);
             Map<String, Object> endSchedODetails = OpenTelemetryService.schedObserver.observe(nativeThreadId);
 
-            if (endCpuDetails.isEmpty() == false) {
+            if (!endCpuDetails.isEmpty()) {
                 CPUMetrics cpuMetrics = calculateThreadCpuPagingActivity(
                     endTime,
                     startTime,
@@ -107,20 +105,16 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (cpuMetrics != null) {
                     DiskTraceOperationMeters.cpuUtilization.record(cpuMetrics.cpuUtilization, attributes);
-                    mapOfValues.put(OSMetrics.CPU_UTILIZATION.toString(), cpuMetrics.cpuUtilization);
 
                     DiskTraceOperationMeters.pagingMajFltRate.record(cpuMetrics.majorFault, attributes);
-                    mapOfValues.put(OSMetrics.PAGING_MAJ_FLT_RATE.toString(), cpuMetrics.majorFault);
 
                     DiskTraceOperationMeters.pagingMinFltRate.record(cpuMetrics.minorFault, attributes);
-                    mapOfValues.put(OSMetrics.PAGING_MIN_FLT_RATE.toString(), cpuMetrics.minorFault);
 
                     DiskTraceOperationMeters.pagingRss.record(cpuMetrics.residentSetSize, attributes);
-                    mapOfValues.put(OSMetrics.PAGING_RSS.toString(), cpuMetrics.residentSetSize);
                 }
             }
 
-            if (endDiskIODetails.isEmpty() == false) {
+            if (!endDiskIODetails.isEmpty()) {
                 IOMetrics diskIOMetrics = calculateIOMetrics(
                     endTime,
                     startTime,
@@ -129,35 +123,26 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (diskIOMetrics != null) {
                     DiskTraceOperationMeters.readThroughputBps.record(diskIOMetrics.avgReadThroughputBps, attributes);
-                    mapOfValues.put("ReadThroughputBps", diskIOMetrics.avgReadThroughputBps);
 
                     DiskTraceOperationMeters.writeThroughputBps.record(diskIOMetrics.avgWriteThroughputBps, attributes);
-                    mapOfValues.put("WriteThroughputBps", diskIOMetrics.avgWriteThroughputBps);
 
                     DiskTraceOperationMeters.totalThroughputBps.record(diskIOMetrics.avgTotalThroughputBps, attributes);
-                    mapOfValues.put("TotalThroughputBps", diskIOMetrics.avgTotalThroughputBps);
 
                     DiskTraceOperationMeters.readSyscallRate.record(diskIOMetrics.avgReadSyscallRate, attributes);
-                    mapOfValues.put("ReadSyscallRate", diskIOMetrics.avgReadSyscallRate);
 
                     DiskTraceOperationMeters.writeSyscallRate.record(diskIOMetrics.avgWriteSyscallRate, attributes);
-                    mapOfValues.put("WriteSyscallRate", diskIOMetrics.avgWriteSyscallRate);
 
                     DiskTraceOperationMeters.totalSyscallRate.record(diskIOMetrics.avgTotalSyscallRate, attributes);
-                    mapOfValues.put("TotalSyscallRate", diskIOMetrics.avgTotalSyscallRate);
 
                     DiskTraceOperationMeters.pageCacheReadThroughputBps.record(diskIOMetrics.avgPageCacheReadThroughputBps, attributes);
-                    mapOfValues.put("PageCacheReadThroughputBps", diskIOMetrics.avgPageCacheReadThroughputBps);
 
                     DiskTraceOperationMeters.pageCacheWriteThroughputBps.record(diskIOMetrics.avgPageCacheWriteThroughputBps, attributes);
-                    mapOfValues.put("PageCacheWriteThroughputBps", diskIOMetrics.avgPageCacheWriteThroughputBps);
 
                     DiskTraceOperationMeters.pageCacheTotalThroughputBps.record(diskIOMetrics.avgPageCacheTotalThroughputBps, attributes);
-                    mapOfValues.put("PageCacheTotalThroughputBps", diskIOMetrics.avgPageCacheTotalThroughputBps);
                 }
             }
 
-            if (endSchedODetails.isEmpty() == false) {
+            if (!endSchedODetails.isEmpty()) {
                 SchedMetrics schedMetrics = calculateThreadSchedLatency(
                     endTime,
                     startTime,
@@ -167,45 +152,23 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (schedMetrics != null) {
                     DiskTraceOperationMeters.schedRunTime.record(schedMetrics.avgRuntime, attributes);
-                    mapOfValues.put(AllMetrics.OSMetrics.SCHED_RUNTIME.toString(), schedMetrics.avgRuntime);
 
                     DiskTraceOperationMeters.schedWaitTime.record(schedMetrics.avgWaittime, attributes);
-                    mapOfValues.put(OSMetrics.SCHED_WAITTIME.toString(), schedMetrics.avgWaittime);
 
                     DiskTraceOperationMeters.schedCtxRate.record(schedMetrics.contextSwitchRate, attributes);
-                    mapOfValues.put(OSMetrics.SCHED_CTX_RATE.toString(), schedMetrics.contextSwitchRate);
                 }
             }
             if (threadState != null) {
                 DiskTraceOperationMeters.heapAllocRate.record(threadState.heapAllocRate, attributes);
-                mapOfValues.put(AllMetrics.OSMetrics.HEAP_ALLOC_RATE.name(), threadState.heapAllocRate);
 
-                DiskTraceOperationMeters.blockedCount.add(threadState.blockedCount, attributes);
-                mapOfValues.put(OSMetrics.THREAD_BLOCKED_EVENT.name(), threadState.blockedCount);
+                DiskTraceOperationMeters.blockedCount.record(threadState.blockedCount, attributes);
 
-                DiskTraceOperationMeters.blockedTime.add(threadState.blockedTime, attributes);
-                mapOfValues.put(OSMetrics.THREAD_BLOCKED_TIME.name(), threadState.blockedTime);
+                DiskTraceOperationMeters.blockedTime.record(threadState.blockedTime, attributes);
 
-                DiskTraceOperationMeters.waitedCount.add(threadState.waitedCount, attributes);
-                mapOfValues.put(AllMetrics.OSMetrics.THREAD_WAITED_EVENT.toString(), threadState.waitedCount);
+                DiskTraceOperationMeters.waitedCount.record(threadState.waitedCount, attributes);
 
-                DiskTraceOperationMeters.waitedTime.add(threadState.waitedTime, attributes);
-                mapOfValues.put(AllMetrics.OSMetrics.THREAD_WAITED_TIME.toString(), threadState.waitedTime);
+                DiskTraceOperationMeters.waitedTime.record(threadState.waitedTime, attributes);
             }
-
-            mapOfValues.forEach(
-                (k, v) -> {
-                    if (v instanceof Double) {
-                        System.out.print(k + ":" + v + ", ");
-                    } else if (v instanceof Long) {
-                        System.out.print("Long=" + k + ":" + v + ", ");
-
-                    } else {
-                        System.out.print("ND=" + k + ":" + v + ", ");
-                    }
-                });
-            System.out.println("\nDone");
-            // meter.gaugeBuilder("CPUUtilization").buildWithCallback(callback -> cpuUtilization = callback);
             resetHistogram();
         }
     }
