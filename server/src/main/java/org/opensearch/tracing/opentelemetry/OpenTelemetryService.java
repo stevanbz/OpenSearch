@@ -30,11 +30,16 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
+import java.util.Map;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.performanceanalyzer.commons.os.observer.ResourceObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.DeviceNetworkStatsObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.IOObserver;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.Ipv4Observer;
+import org.opensearch.performanceanalyzer.commons.os.observer.impl.Ipv6Observer;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.SchedObserver;
 import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,9 +64,15 @@ public class OpenTelemetryService {
     private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH, "transport");
     public static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    public static final CPUObserver cpuObserver = new CPUObserver();
-    public static final IOObserver ioObserver = new IOObserver();
-    public static final SchedObserver schedObserver = new SchedObserver();
+    public static final ResourceObserver<Map<String, Object>> cpuObserver = new CPUObserver();
+    public static final ResourceObserver<Map<String, Long>> ioObserver = new IOObserver();
+    public static final ResourceObserver<Map<String, Object>> schedObserver = new SchedObserver();
+
+    public static final ResourceObserver<Long> ipv4Observer = new Ipv4Observer();
+
+    public static final ResourceObserver<Long> ipv6Observer = new Ipv6Observer();
+
+    public static final ResourceObserver<Long> deviceNetworkStatsObserver = new DeviceNetworkStatsObserver();
 
     public static final ThreadIDUtil threadIdUtil = ThreadIDUtil.INSTANCE;
 
@@ -217,6 +228,7 @@ public class OpenTelemetryService {
                         INSTANCE = otelEventListenerList;
                         INSTANCE.add(JavaThreadEventListener.INSTANCE);
                         INSTANCE.add(DiskStatsEventListener.INSTANCE);
+                        INSTANCE.add(NetworkStatsEventListener.INSTANCE);
                     }
                 }
             }
