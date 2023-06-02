@@ -47,7 +47,7 @@ public class DiskStatsEventListener implements TaskEventListener {
             schedThreadDetailsMap = new HashMap<>();
         }
 
-        public SupportedMeasurement(Thread t, boolean threadContentionEnabled) {
+        private SupportedMeasurement(Thread t, boolean threadContentionEnabled) {
             startTime = System.currentTimeMillis();
             long jTid = t.getId();
 

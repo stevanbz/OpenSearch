@@ -64,7 +64,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
             OSMetricsGeneratorFactory.getInstance().getPagingActivityGenerator();
         // threadCPUPagingActivityGenerator.addSample(String.valueOf(nativeThreadID));
 
-        cpuObserver.observeMetricForThread(String.valueOf(nativeThreadID), StatKeys.PID.getLabel());
+        //cpuObserver.obser(String.valueOf(nativeThreadID), StatKeys.PID.getLabel());
 
         SchedMetricsGenerator schedMetricsGenerator =
             OSMetricsGeneratorFactory.getInstance().getSchedMetricsGenerator();
