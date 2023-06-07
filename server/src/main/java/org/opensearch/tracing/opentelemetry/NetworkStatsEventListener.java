@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
 import org.opensearch.performanceanalyzer.commons.collectors.NetInterfaceSummary;
-import org.opensearch.performanceanalyzer.commons.os.metrics.NetworkMetricsCalculator;
+import org.opensearch.performanceanalyzer.commons.hwnet.metrics.NetworkMetricsCalculator;
 import org.opensearch.tracing.TaskEventListener;
 import org.opensearch.tracing.opentelemetry.meters.NetworkOperationMeters;
 
