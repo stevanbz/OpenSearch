@@ -30,19 +30,25 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
-import java.util.Map;
+import java.lang.Thread.UncaughtExceptionHandler;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.performanceanalyzer.commons.hwnet.observer.NetObserver;
 import org.opensearch.performanceanalyzer.commons.hwnet.observer.impl.DeviceNetworkStatsObserver;
+import org.opensearch.performanceanalyzer.commons.hwnet.observer.impl.DiskObserver;
 import org.opensearch.performanceanalyzer.commons.hwnet.observer.impl.Ipv4Observer;
 import org.opensearch.performanceanalyzer.commons.hwnet.observer.impl.Ipv6Observer;
-import org.opensearch.performanceanalyzer.commons.observer.ResourceObserver;
-import org.opensearch.performanceanalyzer.commons.os.observer.OsObserver;
+import org.opensearch.performanceanalyzer.commons.hwnet.observer.impl.MountedPartitionsObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.IOObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.SchedObserver;
 import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
+import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
 import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
@@ -56,27 +62,33 @@ import static io.opentelemetry.api.common.AttributeKey.stringKey;
 
 
 public class OpenTelemetryService {
-    public static Resource resource;
-    public static SdkTracerProvider sdkTracerProvider;
-    public static SdkMeterProvider sdkMeterProvider;
+    private static Resource resource;
+    private static SdkTracerProvider sdkTracerProvider;
+    private static SdkMeterProvider sdkMeterProvider;
+    private static OpenTelemetry openTelemetry;
+    public static Meter periodicalMeter;
     public static Meter meter;
-    public static OpenTelemetry openTelemetry;
     private static final List<String> allowedThreadPools = List.of(ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH, "transport");
     public static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    public static final ResourceObserver<Map<String, Object>> cpuObserver = new CPUObserver();
-    public static final ResourceObserver<Map<String, Long>> ioObserver = new IOObserver();
-    public static final ResourceObserver<Map<String, Object>> schedObserver = new SchedObserver();
+    public static final CPUObserver cpuObserver = new CPUObserver();
+    public static final IOObserver ioObserver = new IOObserver();
+    public static final SchedObserver schedObserver = new SchedObserver();
 
-    public static final ResourceObserver<Long> ipv4Observer = new Ipv4Observer();
+    public static final Ipv4Observer ipv4Observer = new Ipv4Observer();
 
-    public static final ResourceObserver<Long> ipv6Observer = new Ipv6Observer();
+    public static final Ipv6Observer ipv6Observer = new Ipv6Observer();
 
-    public static final ResourceObserver<Long> deviceNetworkStatsObserver = new DeviceNetworkStatsObserver();
+    public static final DeviceNetworkStatsObserver deviceNetworkStatsObserver = new DeviceNetworkStatsObserver();
+    public static final DiskObserver diskObserver = new DiskObserver();
+
+    public static final MountedPartitionsObserver mountedPartitionObserver = new MountedPartitionsObserver();
 
     public static final ThreadIDUtil threadIdUtil = ThreadIDUtil.INSTANCE;
 
     public static Attributes globalAttributes;
+
+    private static Logger logger = LogManager.getLogger(OpenTelemetryService.class);
 
     static {
         resource = Resource.getDefault()
@@ -90,9 +102,7 @@ public class OpenTelemetryService {
             .setEndpoint("http://localhost:4317") // Replace with the actual endpoint
             .build();
         sdkTracerProvider = SdkTracerProvider.builder()
-            // .addSpanProcessor(SimpleSpanProcessor.create(OtlpHttpSpanExporter.builder().build()))
             .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
-            // .addSpanProcessor(BatchSpanProcessor.builder(LoggingSpanExporter.create()).build())
             .setResource(resource)
             .build();
 
@@ -105,11 +115,25 @@ public class OpenTelemetryService {
             .setTracerProvider(sdkTracerProvider)
             .setMeterProvider(sdkMeterProvider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-            .buildAndRegisterGlobal();
+            .build();
 
         meter = openTelemetry.meterBuilder("opensearch-task")
             .setInstrumentationVersion("1.0.0")
             .build();
+
+        SdkMeterProvider periodicalMeterProvider = SdkMeterProvider.builder()
+            .registerMetricReader(PeriodicMetricReader.builder(metricExporter).setInterval(5, TimeUnit.SECONDS).build())
+            .setResource(resource).build();
+
+        periodicalMeter = OpenTelemetrySdk.builder()
+            .setTracerProvider(sdkTracerProvider)
+            .setMeterProvider(periodicalMeterProvider)
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .build()
+            .meterBuilder("opensearch-task")
+            .setInstrumentationVersion("1.0.0")
+            .build();
+
         globalAttributes = Attributes.empty();
     }
 
@@ -228,7 +252,6 @@ public class OpenTelemetryService {
                         INSTANCE = otelEventListenerList;
                         INSTANCE.add(JavaThreadEventListener.INSTANCE);
                         INSTANCE.add(DiskStatsEventListener.INSTANCE);
-                        INSTANCE.add(NetworkStatsEventListener.INSTANCE);
                     }
                 }
             }
@@ -236,6 +259,15 @@ public class OpenTelemetryService {
         }
     }
 
+    /**
+     *     static ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+     *         Thread thread = new Thread(r, "task-event-listener-executor");
+     *         thread.setUncaughtExceptionHandler((t1, e) ->
+     *             logger.error(String.format("Error executing operation: %s, event: %s with exception: %s", operationName, eventName, e.getMessage()), e)
+     *         );
+     *         return thread;
+     *     });
+     */
     protected static void callTaskEventListeners(boolean startEvent, String operationName, String eventName, Thread t,
                                                List<TaskEventListener> taskEventListeners) {
         if (Context.current() != Context.root()) {
@@ -245,8 +277,11 @@ public class OpenTelemetryService {
                         if (eventListener.isApplicable(operationName, eventName)) {
                             if (startEvent) {
                                 eventListener.onStart(operationName, eventName, t);
+                                // TODO - when using executor, com.sun.management.ThreadMXBean.getThreadInfo(long) returns null
+                                // executor.execute(() -> eventListener.onStart(operationName, eventName, t));
                             } else {
-                                eventListener.onEnd(operationName, eventName, t);
+                                 eventListener.onEnd(operationName, eventName, t);
+                                //executor.execute(() -> eventListener.onEnd(operationName, eventName, t));
                             }
                         }
                     }

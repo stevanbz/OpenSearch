@@ -42,6 +42,9 @@ import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.tracing.TaskEventListener;
+import org.opensearch.tracing.opentelemetry.DiskStatsTracingService;
+import org.opensearch.tracing.opentelemetry.MountedStatsTracingService;
+import org.opensearch.tracing.opentelemetry.NetworkTracingService;
 import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
@@ -356,7 +359,10 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    private final DiskStatsTracingService diskStatsTracingService;
+    private final NetworkTracingService networkTracingService;
 
+    private final MountedStatsTracingService mountedStatsTracingService;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
@@ -1134,6 +1140,9 @@ public class Node implements Closeable {
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
 
+            diskStatsTracingService = DiskStatsTracingService.getInstance();
+            networkTracingService = NetworkTracingService.getInstance();
+            mountedStatsTracingService = MountedStatsTracingService.getInstance();
             success = true;
         } catch (IOException ex) {
             throw new OpenSearchException("failed to bind service", ex);
@@ -1481,6 +1490,10 @@ public class Node implements Closeable {
      */
     // synchronized to prevent running concurrently with close()
     public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        // Turn of schedulers
+        diskStatsTracingService.shutDown();
+        networkTracingService.shutDown();
+        mountedStatsTracingService.shutDown();
         if (lifecycle.closed() == false) {
             // We don't want to shutdown the threadpool or interrupt threads on a node that is not
             // closed yet.

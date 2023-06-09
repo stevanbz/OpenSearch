@@ -208,4 +208,9 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.tools.attach";
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "defineClass";
+
+  // TODO - think how to use the invokePrivileged instead of giving the permissions from below
+  // Util.invokePrivileged(() -> entry.getValue().getTotalSpace());
+  permission java.lang.RuntimePermission "getFileSystemAttributes";
+  permission java.io.FilePermission "/", "read";
 };

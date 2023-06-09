@@ -21,8 +21,6 @@ import java.util.Map;
 import java.util.Stack;
 import org.opensearch.performanceanalyzer.commons.collectors.OSMetricsCollector;
 import org.opensearch.performanceanalyzer.commons.jvm.ThreadList;
-import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics;
-import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics.OSMetrics;
 import org.opensearch.performanceanalyzer.commons.os.metrics.CPUMetrics;
 import org.opensearch.performanceanalyzer.commons.os.metrics.IOMetrics;
 import org.opensearch.performanceanalyzer.commons.os.metrics.SchedMetrics;
@@ -105,11 +103,8 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (cpuMetrics != null) {
                     DiskTraceOperationMeters.cpuUtilization.record(cpuMetrics.cpuUtilization, attributes);
-
                     DiskTraceOperationMeters.pagingMajFltRate.record(cpuMetrics.majorFault, attributes);
-
                     DiskTraceOperationMeters.pagingMinFltRate.record(cpuMetrics.minorFault, attributes);
-
                     DiskTraceOperationMeters.pagingRss.record(cpuMetrics.residentSetSize, attributes);
                 }
             }
@@ -123,22 +118,20 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (diskIOMetrics != null) {
                     DiskTraceOperationMeters.readThroughputBps.record(diskIOMetrics.avgReadThroughputBps, attributes);
-
                     DiskTraceOperationMeters.writeThroughputBps.record(diskIOMetrics.avgWriteThroughputBps, attributes);
-
                     DiskTraceOperationMeters.totalThroughputBps.record(diskIOMetrics.avgTotalThroughputBps, attributes);
-
                     DiskTraceOperationMeters.readSyscallRate.record(diskIOMetrics.avgReadSyscallRate, attributes);
-
                     DiskTraceOperationMeters.writeSyscallRate.record(diskIOMetrics.avgWriteSyscallRate, attributes);
-
                     DiskTraceOperationMeters.totalSyscallRate.record(diskIOMetrics.avgTotalSyscallRate, attributes);
 
-                    DiskTraceOperationMeters.pageCacheReadThroughputBps.record(diskIOMetrics.avgPageCacheReadThroughputBps, attributes);
-
-                    DiskTraceOperationMeters.pageCacheWriteThroughputBps.record(diskIOMetrics.avgPageCacheWriteThroughputBps, attributes);
-
-                    DiskTraceOperationMeters.pageCacheTotalThroughputBps.record(diskIOMetrics.avgPageCacheTotalThroughputBps, attributes);
+                    // TODO - Check the reason when three metrics are less than 0
+                    // By adding condition warn (Histograms can only record non-negative values) is prevented
+                    if (diskIOMetrics.avgPageCacheReadThroughputBps > 0)
+                        DiskTraceOperationMeters.pageCacheReadThroughputBps.record(diskIOMetrics.avgPageCacheReadThroughputBps, attributes);
+                    if (diskIOMetrics.avgPageCacheWriteThroughputBps > 0)
+                        DiskTraceOperationMeters.pageCacheWriteThroughputBps.record(diskIOMetrics.avgPageCacheWriteThroughputBps, attributes);
+                    if (diskIOMetrics.avgPageCacheTotalThroughputBps > 0)
+                        DiskTraceOperationMeters.pageCacheTotalThroughputBps.record(diskIOMetrics.avgPageCacheTotalThroughputBps, attributes);
                 }
             }
 
@@ -152,21 +145,15 @@ public class DiskStatsEventListener implements TaskEventListener {
 
                 if (schedMetrics != null) {
                     DiskTraceOperationMeters.schedRunTime.record(schedMetrics.avgRuntime, attributes);
-
                     DiskTraceOperationMeters.schedWaitTime.record(schedMetrics.avgWaittime, attributes);
-
                     DiskTraceOperationMeters.schedCtxRate.record(schedMetrics.contextSwitchRate, attributes);
                 }
             }
             if (threadState != null) {
                 DiskTraceOperationMeters.heapAllocRate.record(threadState.heapAllocRate, attributes);
-
                 DiskTraceOperationMeters.blockedCount.record(threadState.blockedCount, attributes);
-
                 DiskTraceOperationMeters.blockedTime.record(threadState.blockedTime, attributes);
-
                 DiskTraceOperationMeters.waitedCount.record(threadState.waitedCount, attributes);
-
                 DiskTraceOperationMeters.waitedTime.record(threadState.waitedTime, attributes);
             }
             resetHistogram();

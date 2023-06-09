@@ -58,6 +58,6 @@ public class NetworkOperationMeters {
     }
 
     public static Meter getMeter() {
-        return OpenTelemetryService.meter;
+        return OpenTelemetryService.periodicalMeter;
     }
 }

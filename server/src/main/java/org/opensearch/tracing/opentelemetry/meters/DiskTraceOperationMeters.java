@@ -98,6 +98,4 @@ public class DiskTraceOperationMeters {
     public static Meter getMeter() {
         return OpenTelemetryService.meter;
     }
-
-
 }

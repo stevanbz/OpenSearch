@@ -94,12 +94,17 @@ final public class OpenSearchConcurrentExecutorService extends OpenSearchForward
         return () -> {
             if (Context.current() != Context.root()) {
                 try (Scope ignored = Context.current().makeCurrent(); Scope ignored2 = Baggage.current().makeCurrent()) {
+
                     OpenTelemetryService.callTaskEventListeners(true, "", Span.current().getSpanContext().getSpanId() + "-" +
                         Thread.currentThread().getName() + "-Start", Thread.currentThread(), taskEventListeners);
+
                     return callable.call();
+
                 } finally {
+
                     OpenTelemetryService.callTaskEventListeners(false, "", Span.current().getSpanContext().getSpanId() + "-" +
                         Thread.currentThread().getName() + "-End", Thread.currentThread(), taskEventListeners);
+
                 }
             } else {
                 return callable.call();
