@@ -35,6 +35,8 @@ package org.opensearch.indices.recovery;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
@@ -211,6 +213,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
+            Span span = OpenTelemetryService.createSpan("spanName");
+            try (Scope ignored = span.makeCurrent()) {
+                System.out.println("Current " + Context.current());
+            } finally {
+                System.out.println("Finally current " + Context.current());
+            }
+            Span span1 = OpenTelemetryService.createSpan("spanName");
+            try (Scope ignored = span1.makeCurrent()) {
+                System.out.println("Current " + Context.current());
+            } finally {
+                System.out.println("Finally current " + Context.current());
+            }
+
             BiFunction<Object[], ActionListener<?>, Void> recoverFunction = (args, actionListener) -> {
                 recover((StartRecoveryRequest) args[0], (ActionListener<RecoveryResponse>) actionListener);
                 return null;

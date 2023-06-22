@@ -30,10 +30,6 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
-import java.lang.Thread.UncaughtExceptionHandler;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,7 +44,6 @@ import org.opensearch.performanceanalyzer.commons.os.observer.impl.CPUObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.IOObserver;
 import org.opensearch.performanceanalyzer.commons.os.observer.impl.SchedObserver;
 import org.opensearch.performanceanalyzer.commons.util.ThreadIDUtil;
-import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
 import org.opensearch.tracing.opentelemetry.meters.TraceOperationMeters;
@@ -89,6 +84,8 @@ public class OpenTelemetryService {
     public static Attributes globalAttributes;
 
     private static Logger logger = LogManager.getLogger(OpenTelemetryService.class);
+
+    public static TracingServiceSettings tracingServiceSettings;
 
     static {
         resource = Resource.getDefault()
@@ -215,7 +212,7 @@ public class OpenTelemetryService {
     /**
      * TODO - to be replaced when OpenSearch tracing APIs are available
      */
-    private static Span createSpan(String spanName) {
+    public static Span createSpan(String spanName) {
         Tracer tracer = OpenTelemetryService.sdkTracerProvider.get("recover");
         Span span = tracer.spanBuilder(spanName).setParent(Context.current()).startSpan();
         span.setAttribute(stringKey("start-thread-name"), Thread.currentThread().getName());
@@ -258,32 +255,33 @@ public class OpenTelemetryService {
             return INSTANCE;
         }
     }
-
-    /**
-     *     static ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-     *         Thread thread = new Thread(r, "task-event-listener-executor");
-     *         thread.setUncaughtExceptionHandler((t1, e) ->
-     *             logger.error(String.format("Error executing operation: %s, event: %s with exception: %s", operationName, eventName, e.getMessage()), e)
-     *         );
-     *         return thread;
-     *     });
-     */
     protected static void callTaskEventListeners(boolean startEvent, String operationName, String eventName, Thread t,
                                                List<TaskEventListener> taskEventListeners) {
-        if (Context.current() != Context.root()) {
-            try (Scope ignored = Span.current().makeCurrent()) {
-                if (taskEventListeners != null && !taskEventListeners.isEmpty()) {
-                    for (TaskEventListener eventListener : taskEventListeners) {
-                        if (eventListener.isApplicable(operationName, eventName)) {
-                            if (startEvent) {
-                                eventListener.onStart(operationName, eventName, t);
-                                // TODO - when using executor, com.sun.management.ThreadMXBean.getThreadInfo(long) returns null
-                                // executor.execute(() -> eventListener.onStart(operationName, eventName, t));
-                            } else {
-                                 eventListener.onEnd(operationName, eventName, t);
-                                //executor.execute(() -> eventListener.onEnd(operationName, eventName, t));
-                            }
-                        }
+        if (taskEventListeners == null || taskEventListeners.isEmpty()) {
+            return;
+        }
+
+        if (Context.current() == Context.root()) {
+            return;
+        }
+
+        try (Scope ignored = Span.current().makeCurrent()) {
+            for (TaskEventListener eventListener : taskEventListeners) {
+                if (eventListener.isApplicable(operationName, eventName)) {
+                    // Skip if Disk stats tracing is disabled
+                    if (eventListener instanceof DiskStatsEventListener && !tracingServiceSettings.isTracingDiskStatsMetricsEnabled()) {
+                        continue;
+                    }
+                    // Skip if JavaThread metrics tracing is disabled
+                    if (eventListener instanceof JavaThreadEventListener && !tracingServiceSettings.isTracingJavaThreadEnabled()) {
+                        continue;
+                    }
+
+                    if (startEvent) {
+                        // TODO - when using executor, com.sun.management.ThreadMXBean.getThreadInfo(long) returns null
+                        eventListener.onStart(operationName, eventName, t);
+                    } else {
+                        eventListener.onEnd(operationName, eventName, t);
                     }
                 }
             }

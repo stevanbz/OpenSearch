@@ -13,6 +13,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -27,6 +28,7 @@ import org.opensearch.tracing.opentelemetry.meters.NetworkOperationMeters;
 public class NetworkTracingService {
 
     private static final NetworkTracingService instance;
+    private static final String NETWORK_METRIC_SCHEDULER = "OpenTelemetry-Network-Scheduler";
 
     private ScheduledExecutorService scheduler;
     private long kvTimestamp = 0;
@@ -45,6 +47,8 @@ public class NetworkTracingService {
     private DeviceNetworkStatsObserver deviceNetworkStatsObserver;
 
     private Scheduled scheduled;
+
+    private Future networkMetricJob;
 
     private static final int SCHEDULE_PERIOD = 5;
 
@@ -66,8 +70,35 @@ public class NetworkTracingService {
         deviceNetworkStatsMetrics = new ConcurrentHashMap<>();
 
         scheduled = new Scheduled();
-        scheduler = new ScheduledThreadPoolExecutor(1, OpenSearchExecutors.daemonThreadFactory("OpenTelemetry-Network-Scheduler"));
-        scheduler.scheduleAtFixedRate(scheduled, SCHEDULE_PERIOD, SCHEDULE_PERIOD, TimeUnit.SECONDS);
+    }
+
+    public void init(TracingServiceSettings tracingServiceSettings) {
+        if (tracingServiceSettings.isTracingNetworkMetricsEnabled()) {
+            // Init scheduler
+            scheduler = new ScheduledThreadPoolExecutor(1, OpenSearchExecutors.daemonThreadFactory(NETWORK_METRIC_SCHEDULER));
+            networkMetricJob = scheduler.scheduleAtFixedRate(scheduled, SCHEDULE_PERIOD, SCHEDULE_PERIOD, TimeUnit.SECONDS);
+        }
+        // Add consumer (listener) that will be triggered whenever network metrics tracing is enabled/disabled
+        tracingServiceSettings.addNetworkMetricTracingSettingConsumer(this::toggleNetworkMetrics);
+    }
+
+    /**
+     * Depending of the flag, enables or disables repeatable thread for getting the network metrics
+     * @param networkMetricsEnabled
+     */
+    private void toggleNetworkMetrics(boolean networkMetricsEnabled) {
+        if (networkMetricsEnabled) {
+            if (networkMetricJob != null || !networkMetricJob.isDone() || !networkMetricJob.isCancelled()) {
+                networkMetricJob.cancel(true);
+            }
+
+            if (scheduler == null || scheduler.isShutdown() || scheduler.isTerminated()) {
+                scheduler = new ScheduledThreadPoolExecutor(1, OpenSearchExecutors.daemonThreadFactory(NETWORK_METRIC_SCHEDULER));
+            }
+            networkMetricJob = scheduler.scheduleAtFixedRate(scheduled, SCHEDULE_PERIOD, SCHEDULE_PERIOD, TimeUnit.SECONDS);
+        } else {
+           shutDown();
+        }
     }
 
     public void shutDown() {

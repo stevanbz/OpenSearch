@@ -42,7 +42,7 @@ import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.tracing.TaskEventListener;
-import org.opensearch.tracing.opentelemetry.DiskStatsTracingService;
+import org.opensearch.tracing.opentelemetry.DiskTracingService;
 import org.opensearch.tracing.opentelemetry.MountedStatsTracingService;
 import org.opensearch.tracing.opentelemetry.NetworkTracingService;
 import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
@@ -61,6 +61,7 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.tracing.opentelemetry.TracingServiceSettings;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -359,9 +360,8 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
-    private final DiskStatsTracingService diskStatsTracingService;
+    private final DiskTracingService diskTracingService;
     private final NetworkTracingService networkTracingService;
-
     private final MountedStatsTracingService mountedStatsTracingService;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
@@ -1140,9 +1140,21 @@ public class Node implements Closeable {
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
 
-            diskStatsTracingService = DiskStatsTracingService.getInstance();
+            TracingServiceSettings tracingServiceSettings = new TracingServiceSettings(
+                settings,
+                clusterService.getClusterSettings()
+            );
+
+            OpenTelemetryService.tracingServiceSettings = tracingServiceSettings;
             networkTracingService = NetworkTracingService.getInstance();
+            networkTracingService.init(tracingServiceSettings);
+
+            diskTracingService = DiskTracingService.getInstance();
+            diskTracingService.init(tracingServiceSettings);
+
             mountedStatsTracingService = MountedStatsTracingService.getInstance();
+            mountedStatsTracingService.init(tracingServiceSettings);
+
             success = true;
         } catch (IOException ex) {
             throw new OpenSearchException("failed to bind service", ex);
@@ -1491,9 +1503,9 @@ public class Node implements Closeable {
     // synchronized to prevent running concurrently with close()
     public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
         // Turn of schedulers
-        diskStatsTracingService.shutDown();
+        diskTracingService.shutDown();
         networkTracingService.shutDown();
-        mountedStatsTracingService.shutDown();
+
         if (lifecycle.closed() == false) {
             // We don't want to shutdown the threadpool or interrupt threads on a node that is not
             // closed yet.

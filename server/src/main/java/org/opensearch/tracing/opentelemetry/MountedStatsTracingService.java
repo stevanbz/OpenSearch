@@ -12,22 +12,19 @@ import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.performanceanalyzer.commons.metrics.AllMetrics.DevicePartitionValue;
 
 public class MountedStatsTracingService {
     private Map<PartitionKey, File> partitionKeyFileMap;
-    private ScheduledExecutorService scheduler;
     private static final String MOUNT_POINT_KEY = "MountPoint";
     private static final String DEVICE_PARTITION_KEY = "DevicePartition";
-    private static final int SCHEDULE_PERIOD = 5;
     private static final MountedStatsTracingService INSTANCE;
 
     static {
@@ -38,14 +35,56 @@ public class MountedStatsTracingService {
         return INSTANCE;
     }
 
+    private List<ObservableDoubleGauge> totalSpaceGauges;
+    private List<ObservableDoubleGauge> freeSpaceGauges;
+    private List<ObservableDoubleGauge> usableFreeSpaceGauges;
+
     private MountedStatsTracingService() {
         partitionKeyFileMap = new ConcurrentHashMap<>();
+        totalSpaceGauges = new ArrayList<>();
+        freeSpaceGauges = new ArrayList<>();
+        usableFreeSpaceGauges = new ArrayList<>();
+    }
 
-        scheduler = new ScheduledThreadPoolExecutor(1, OpenSearchExecutors.daemonThreadFactory("OpenTelemetry-Mount-Scheduler"));
-        // TODO - Check with Rishabh if we are fine with loading the mount points on the start-up instead of having refresh
-        loadMountedPartitions();
-        Meter meter = OpenTelemetryService.periodicalMeter;
+    public void init(TracingServiceSettings tracingServiceSettings) {
+        if (tracingServiceSettings.isTracingMountedPartitionMetricsEnabled()) {
+            // TODO - Check with Rishabh if we are fine with loading the mount points on the start-up instead of having refresh
+            loadMountedPartitions();
+            Meter meter = OpenTelemetryService.periodicalMeter;
+            initMetricGauges(meter);
+        }
 
+        tracingServiceSettings.addMountedPartitionMetricTracingSettingConsumer(this::toggleMountedStatsMetrics);
+    }
+
+    private void toggleMountedStatsMetrics(boolean mountedStatsMetricsEnabled) {
+        if (mountedStatsMetricsEnabled) {
+            stopGauges();
+            loadMountedPartitions();
+            Meter meter = OpenTelemetryService.periodicalMeter;
+            initMetricGauges(meter);
+        } else {
+            stopGauges();
+        }
+    }
+
+    private void stopGauges() {
+        // Close the gauges and clear the list
+        if (!totalSpaceGauges.isEmpty()) {
+            totalSpaceGauges.forEach(it -> it.close());
+            totalSpaceGauges.clear();
+        }
+        if (!freeSpaceGauges.isEmpty()) {
+            freeSpaceGauges.forEach(it -> it.close());
+            freeSpaceGauges.clear();
+        }
+        if (!usableFreeSpaceGauges.isEmpty()) {
+            usableFreeSpaceGauges.forEach(it -> it.close());
+            usableFreeSpaceGauges.clear();
+        }
+    }
+
+    private void initMetricGauges(Meter meter) {
         // Get the disk stats per each mount point -
         for (Entry<PartitionKey, File> entry: partitionKeyFileMap.entrySet()) {
             Baggage baggage = Baggage.current();
@@ -55,25 +94,20 @@ public class MountedStatsTracingService {
             attributesBuilder.put(DEVICE_PARTITION_KEY, entry.getKey().devicePartition);
             Attributes attributes = attributesBuilder.build();
 
-            meter.gaugeBuilder(DevicePartitionValue.TOTAL_SPACE.name()).buildWithCallback(measurement ->
+            var totalSpaceGauge = meter.gaugeBuilder(DevicePartitionValue.TOTAL_SPACE.name()).buildWithCallback(measurement ->
                 measurement.record(entry.getValue().getTotalSpace(), attributes)
             );
-            meter.gaugeBuilder(DevicePartitionValue.FREE_SPACE.name()).buildWithCallback(measurement ->
+            totalSpaceGauges.add(totalSpaceGauge);
+
+            var freeSpaceGauge = meter.gaugeBuilder(DevicePartitionValue.FREE_SPACE.name()).buildWithCallback(measurement ->
                 measurement.record(entry.getValue().getFreeSpace(), attributes)
             );
-            meter.gaugeBuilder(DevicePartitionValue.USABLE_FREE_SPACE.name()).buildWithCallback(measurement ->
+            freeSpaceGauges.add(freeSpaceGauge);
+
+            var usableFreeSpaceGauge = meter.gaugeBuilder(DevicePartitionValue.USABLE_FREE_SPACE.name()).buildWithCallback(measurement ->
                 measurement.record(entry.getValue().getUsableSpace(), attributes)
             );
-        }
-    }
-
-    public void shutDown() {
-        scheduler.shutdown();
-        try {
-            scheduler.awaitTermination(SCHEDULE_PERIOD, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
+            usableFreeSpaceGauges.add(usableFreeSpaceGauge);
         }
     }
 

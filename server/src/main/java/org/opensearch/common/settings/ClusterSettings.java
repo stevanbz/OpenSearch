@@ -48,6 +48,7 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.tracing.opentelemetry.TracingServiceSettings;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -630,4 +631,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
+
+    public static final Set<Setting<?>> TRACER_FLAGGED_CLUSTER_SETTINGS = Set.of(
+        TracingServiceSettings.DISK_METRICS_TRACING_ENABLED_SETTING,
+        TracingServiceSettings.NETWORK_METRICS_TRACING_ENABLED_SETTING,
+        TracingServiceSettings.MOUNTED_PARTITION_METRICS_TRACING_ENABLED_SETTING,
+        TracingServiceSettings.JAVA_THREAD_METRICS_TRACING_ENABLED_SETTING,
+        TracingServiceSettings.DISK_STATS_METRICS_TRACING_ENABLED_SETTING
+    );
 }

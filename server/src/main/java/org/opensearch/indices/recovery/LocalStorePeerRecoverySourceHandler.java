@@ -135,7 +135,6 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
             // down.
             startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
             logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
-
             try {
                 final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);
                 final Releasable releaseStore = acquireStore(shard.store());

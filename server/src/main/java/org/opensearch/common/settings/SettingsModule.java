@@ -91,6 +91,10 @@ public class SettingsModule implements Module {
             registerSetting(setting);
         }
 
+        for (Setting<?> setting : ClusterSettings.TRACER_FLAGGED_CLUSTER_SETTINGS) {
+            registerSetting(setting);
+        }
+
         for (Map.Entry<String, List<Setting>> featureFlaggedSetting : IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS.entrySet()) {
             if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
                 featureFlaggedSetting.getValue().forEach(feature -> registerSetting(feature));

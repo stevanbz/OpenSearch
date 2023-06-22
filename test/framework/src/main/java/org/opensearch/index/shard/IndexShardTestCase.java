@@ -115,6 +115,7 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoverySourceHandlerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.recovery.RecoveryTargetHandler;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
@@ -962,11 +963,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         recoverySettings.setChunkSize(new ByteSizeValue(fileChunkSizeInBytes));
+
         final RecoverySourceHandler recovery = RecoverySourceHandlerFactory.create(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic(), primary, replica, replicatePrimaryFunction),
             request,
-            recoverySettings, null
+            recoverySettings
         );
         primary.updateShardState(
             primary.routingEntry(),
